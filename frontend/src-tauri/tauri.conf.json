@@ -1,8 +1,8 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "meetily",
-    "version": "0.2.1",
-    "identifier": "com.meetily.ai",
+    "productName": "IQcapture",
+    "version": "0.1.1",
+    "identifier": "com.iqcapture.ai",
     "build": {
         "frontendDist": "../out",
         "devUrl": "http://localhost:3118",
@@ -10,17 +10,15 @@
         "beforeBuildCommand": "pnpm build"
     },
     "app": {
-        "windows": [
-            {
-                "title": "meetily",
-                "width": 1100,
-                "height": 700,
-                "resizable": true,
-                "fullscreen": false,
-                "theme": "Light",
-                "decorations": true
-            }
-        ],
+        "windows": [{
+            "title": "IQ:capture",
+            "width": 1100,
+            "height": 700,
+            "resizable": true,
+            "fullscreen": false,
+            "theme": "Light",
+            "decorations": true
+        }],
         "macOSPrivateApi": true,
         "security": {
             "csp": {
