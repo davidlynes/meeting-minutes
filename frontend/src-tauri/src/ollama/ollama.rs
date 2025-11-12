@@ -282,6 +282,13 @@ pub async fn pull_ollama_model<R: Runtime>(
     let base_url = endpoint.as_deref().unwrap_or("http://localhost:11434");
     let url = format!("{}/api/pull", base_url);
 
+    log::info!(
+        "Ollama pull request: model={} base_url={} url={}",
+        model_name,
+        base_url,
+        url
+    );
+
     let payload = serde_json::json!({
         "name": model_name,
         "stream": true
@@ -294,6 +301,12 @@ pub async fn pull_ollama_model<R: Runtime>(
         .send()
         .await
         .map_err(|e| {
+            let model_name_clone = model_name.clone();
+            tokio::spawn(async move {
+                let mut downloading = DOWNLOADING_MODELS.write().await;
+                downloading.remove(&model_name_clone);
+                log::info!("Removed {} from downloading set due to HTTP error", model_name_clone);
+            });
             if e.is_timeout() {
                 format!("Download timed out. The model may be large, please try using the Ollama CLI: ollama pull {}", model_name)
             } else if e.is_connect() {
@@ -312,6 +325,13 @@ pub async fn pull_ollama_model<R: Runtime>(
             let mut downloading = DOWNLOADING_MODELS.write().await;
             downloading.remove(&model_name);
         }
+
+        log::error!(
+            "Ollama pull failed for model {} with HTTP {} and body: {}",
+            model_name,
+            status,
+            error_text
+        );
 
         // Emit error event
         let _ = app_handle.emit(
@@ -374,7 +394,13 @@ pub async fn pull_ollama_model<R: Runtime>(
 
                         // Only emit if progress changed significantly (reduces event spam)
                         if progress != last_progress && (progress - last_progress >= 1 || progress == 100) {
-                            log::info!("Ollama download progress for {}: {}%", model_name, progress);
+                            log::info!(
+                                "Ollama download progress for {}: {}% ({} / {})",
+                                model_name,
+                                progress,
+                                completed,
+                                total
+                            );
 
                             let _ = app_handle.emit(
                                 "ollama-model-download-progress",
@@ -428,6 +454,7 @@ pub async fn pull_ollama_model<R: Runtime>(
     );
 
     log::info!("Ollama model {} downloaded successfully", model_name);
+    log::info!("Ollama model {} pull complete and removed from tracking set", model_name);
 
     Ok(())
 }
