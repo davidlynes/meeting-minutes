@@ -128,7 +128,7 @@ export function About() {
                 <h3 className="text-medium font-semibold text-gray-800"></h3>
                 <p className="text-s text-gray-600">
                     </p>
-                <button 
+                <button
                     onClick={handleContactClick}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors duration-200 shadow-sm hover:shadow-md"
                 >Contact Support
