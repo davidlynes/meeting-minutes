@@ -60,7 +60,7 @@ export function About() {
                         className="mx-auto"
                     />
                 </div>
-                {/* <h1 className="text-xl font-bold text-gray-900">Meetily</h1> */}
+                {/* <h1 className="text-xl font-bold text-gray-900">IQ:capture</h1> */}
                 <span className="text-sm text-gray-500"> v{currentVersion}</span>
                 <p className="text-medium text-gray-600 mt-1">
                     Real-time notes and summaries that never leave your machine.
