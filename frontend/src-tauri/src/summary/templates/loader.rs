@@ -8,10 +8,21 @@ use std::sync::RwLock;
 // Global storage for the bundled templates directory path
 static BUNDLED_TEMPLATES_DIR: Lazy<RwLock<Option<PathBuf>>> = Lazy::new(|| RwLock::new(None));
 
+// Global storage for the synced (MongoDB-cached) templates directory path
+static SYNCED_TEMPLATES_DIR: Lazy<RwLock<Option<PathBuf>>> = Lazy::new(|| RwLock::new(None));
+
 /// Set the bundled templates directory path (called once at app startup)
 pub fn set_bundled_templates_dir(path: PathBuf) {
     info!("Bundled templates directory set to: {:?}", path);
     if let Ok(mut dir) = BUNDLED_TEMPLATES_DIR.write() {
+        *dir = Some(path);
+    }
+}
+
+/// Set the synced templates directory path (called once at app startup)
+pub fn set_synced_templates_dir(path: PathBuf) {
+    info!("Synced templates directory set to: {:?}", path);
+    if let Ok(mut dir) = SYNCED_TEMPLATES_DIR.write() {
         *dir = Some(path);
     }
 }
@@ -79,13 +90,55 @@ fn load_custom_template(template_id: &str) -> Option<String> {
     }
 }
 
+/// Load a template from the synced (MongoDB-cached) templates directory
+fn load_synced_template(template_id: &str) -> Option<String> {
+    let synced_dir = SYNCED_TEMPLATES_DIR.read().ok()?.clone()?;
+    let template_path = synced_dir.join(format!("{}.json", template_id));
+
+    debug!("Checking for synced template at: {:?}", template_path);
+
+    match std::fs::read_to_string(&template_path) {
+        Ok(content) => {
+            info!("Loaded synced template '{}' from {:?}", template_id, template_path);
+            Some(content)
+        }
+        Err(e) => {
+            debug!("No synced template '{}' found: {}", template_id, e);
+            None
+        }
+    }
+}
+
+/// Save a template to the synced templates directory (called during sync from MongoDB)
+pub fn save_synced_template(template_id: &str, json_content: &str) -> Result<(), String> {
+    let synced_dir = SYNCED_TEMPLATES_DIR
+        .read()
+        .map_err(|e| format!("Failed to read synced templates dir lock: {}", e))?
+        .clone()
+        .ok_or_else(|| "Synced templates directory not initialised".to_string())?;
+
+    // Create directory if it doesn't exist
+    if !synced_dir.exists() {
+        std::fs::create_dir_all(&synced_dir)
+            .map_err(|e| format!("Failed to create synced templates directory: {}", e))?;
+    }
+
+    let template_path = synced_dir.join(format!("{}.json", template_id));
+    std::fs::write(&template_path, json_content)
+        .map_err(|e| format!("Failed to write synced template '{}': {}", template_id, e))?;
+
+    debug!("Saved synced template '{}' to {:?}", template_id, template_path);
+    Ok(())
+}
+
 /// Load and parse a template by identifier
 ///
-/// This function implements a fallback strategy:
+/// This function implements a 4-tier fallback strategy:
 /// 1. Check user's custom templates directory
-/// 2. Check bundled resources directory (app templates)
-/// 3. Fall back to built-in embedded templates
-/// 4. Return error if not found in any location
+/// 2. Check synced templates directory (cached from MongoDB)
+/// 3. Check bundled resources directory (app templates)
+/// 4. Fall back to built-in embedded templates
+/// 5. Return error if not found in any location
 ///
 /// # Arguments
 /// * `template_id` - Template identifier (e.g., "daily_standup", "standard_meeting")
@@ -95,10 +148,13 @@ fn load_custom_template(template_id: &str) -> Option<String> {
 pub fn get_template(template_id: &str) -> Result<Template, String> {
     info!("Loading template: {}", template_id);
 
-    // Try custom template first, then bundled, then built-in
+    // Try custom → synced → bundled → built-in
     let json_content = if let Some(custom_content) = load_custom_template(template_id) {
         debug!("Using custom template for '{}'", template_id);
         custom_content
+    } else if let Some(synced_content) = load_synced_template(template_id) {
+        debug!("Using synced template for '{}'", template_id);
+        synced_content
     } else if let Some(bundled_content) = load_bundled_template(template_id) {
         debug!("Using bundled template for '{}'", template_id);
         bundled_content
@@ -164,6 +220,31 @@ pub fn list_template_ids() -> Vec<String> {
                     }
                     Err(e) => {
                         warn!("Failed to read bundled templates directory: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    // Add synced templates if directory is set
+    if let Ok(synced_dir_lock) = SYNCED_TEMPLATES_DIR.read() {
+        if let Some(synced_dir) = synced_dir_lock.as_ref() {
+            if synced_dir.exists() {
+                match std::fs::read_dir(synced_dir) {
+                    Ok(entries) => {
+                        for entry in entries.flatten() {
+                            if let Some(filename) = entry.file_name().to_str() {
+                                if filename.ends_with(".json") {
+                                    let id = filename.trim_end_matches(".json").to_string();
+                                    if !ids.contains(&id) {
+                                        ids.push(id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to read synced templates directory: {}", e);
                     }
                 }
             }
