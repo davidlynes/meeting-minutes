@@ -11,6 +11,7 @@ import json
 from threading import Lock
 from transcript_processor import TranscriptProcessor
 from template_routes import router as template_router
+from release_routes import router as release_router
 import time
 
 # Load environment variables
@@ -53,6 +54,9 @@ app.add_middleware(
 
 # Register template API router (MongoDB-backed)
 app.include_router(template_router)
+
+# Register release API router (MongoDB-backed update checks)
+app.include_router(release_router)
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()
