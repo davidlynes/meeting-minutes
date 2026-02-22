@@ -66,7 +66,7 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
                 <li>• Number of transcript segments</li>
                 <li>• Number of audio chunks processed</li>
               </ul>
-              <p className="text-xs text-gray-500 mt-2 italic">Helps us optimize performance and understand usage patterns</p>
+              <p className="text-xs text-gray-500 mt-2 italic">Helps us optimise performance and understand usage patterns</p>
             </div>
 
             {/* Device Types */}
@@ -99,7 +99,7 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
                 <li>• App version (automatically included in all events)</li>
                 <li>• Architecture (e.g., "x86_64", "aarch64")</li>
               </ul>
-              <p className="text-xs text-gray-500 mt-2 italic">Helps us prioritize platform support</p>
+              <p className="text-xs text-gray-500 mt-2 italic">Helps us prioritise platform support</p>
             </div>
           </div>
 

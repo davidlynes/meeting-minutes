@@ -20,7 +20,7 @@
     },
     {
       "title": "Progress Summary",
-      "instruction": "Short paragraph summarizing progress since last sync meeting",
+      "instruction": "Short paragraph summarising progress since last sync meeting",
       "format": "paragraph"
     },
     {

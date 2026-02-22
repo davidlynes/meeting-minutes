@@ -19,7 +19,7 @@
         },
         {
           "title": "Objective (O)",
-          "instruction": "Observable findings: affect, speech, behavior, orientation, vitals if relevant",
+          "instruction": "Observable findings: affect, speech, behaviour, orientation, vitals if relevant",
           "format": "paragraph"
         },
         {

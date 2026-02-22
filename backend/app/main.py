@@ -418,21 +418,6 @@ async def get_summary(meeting_id: str):
             # Add MeetingName to transformed data
             transformed_data["MeetingName"] = summary_data.get("MeetingName", "")
 
-            # Map backend sections to frontend sections
-            section_mapping = {
-                # "SessionSummary": "key_points",
-                # "ImmediateActionItems": "action_items",
-                # "KeyItemsDecisions": "decisions",
-                # "NextSteps": "next_steps",
-                # "CriticalDeadlines": "critical_deadlines",
-                # "People": "people"
-            }
-
-            # Add each section to transformed data
-            for backend_key, frontend_key in section_mapping.items():
-                if backend_key in summary_data and isinstance(summary_data[backend_key], dict):
-                    transformed_data[frontend_key] = summary_data[backend_key]
-            
             # Add meeting notes sections if available - PRESERVE ORDER AND HANDLE DUPLICATES
             if "MeetingNotes" in summary_data and isinstance(summary_data["MeetingNotes"], dict):
                 meeting_notes = summary_data["MeetingNotes"]
