@@ -22,7 +22,7 @@ export function ModelDownloadProgress({ status, modelName, onCancel }: ModelDown
         <div className="flex items-center space-x-2">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
           <span className="text-sm font-medium text-blue-900">
-            {isCompleted ? 'Finalizing...' : `Downloading ${modelName}`}
+            {isCompleted ? 'Finalising...' : `Downloading ${modelName}`}
           </span>
         </div>
       </div>

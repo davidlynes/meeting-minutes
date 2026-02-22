@@ -88,7 +88,7 @@ export function SettingsModals({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Summarization Model
+                    Summarisation Model
                   </label>
                   <div className="flex space-x-2">
                     <select
@@ -284,7 +284,7 @@ export function SettingsModals({
               </label>
               <div>
                 <p className="text-sm font-medium text-gray-700">Show Confidence Indicators</p>
-                <p className="text-xs text-gray-500">Display colored dots showing transcription confidence quality</p>
+                <p className="text-xs text-gray-500">Display coloured dots showing transcription confidence quality</p>
               </div>
             </div>
 
