@@ -17,7 +17,7 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Allow imports from backend/app/
@@ -75,12 +75,12 @@ async def seed():
             "clinical_safety_rules": data.get("clinical_safety_rules"),
             "version": 1,
             "is_active": True,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         result = await collection.update_one(
             {"template_id": template_id, "client_id": "default"},
-            {"$set": doc, "$setOnInsert": {"created_at": datetime.utcnow()}},
+            {"$set": doc, "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
             upsert=True,
         )
 
