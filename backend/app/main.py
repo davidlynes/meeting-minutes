@@ -10,6 +10,7 @@ from db import DatabaseManager
 import json
 from threading import Lock
 from transcript_processor import TranscriptProcessor
+from template_routes import router as template_router
 import time
 
 # Load environment variables
@@ -49,6 +50,9 @@ app.add_middleware(
     allow_headers=["*"],     # Allow all headers
     max_age=3600,            # Cache preflight requests for 1 hour
 )
+
+# Register template API router (MongoDB-backed)
+app.include_router(template_router)
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()
