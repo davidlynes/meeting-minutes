@@ -69,9 +69,9 @@ pub fn get_available_models() -> Vec<ModelDef> {
         ModelDef {
             name: "gemma3:1b".to_string(),
             display_name: "Gemma 3 1B (Fast)".to_string(),
-            gguf_file: "gemma-3-1b-it-Q8_0.gguf".to_string(),
+            gguf_file: "gemma-3-1b-it-q8_0.gguf".to_string(),
             template: "gemma3".to_string(),
-            download_url: "https://iqcapture.towardsgeneralintelligence.com/models/gemma-3-1b-it-Q8_0.gguf".to_string(),
+            download_url: "https://huggingface.co/NikolayKozloff/gemma-3-1b-it-Q8_0-GGUF/resolve/main/gemma-3-1b-it-q8_0.gguf".to_string(),
             size_mb: 1019,
             context_size: 32768, 
             layer_count: 26,     
@@ -86,9 +86,9 @@ pub fn get_available_models() -> Vec<ModelDef> {
         ModelDef {
             name: "gemma3:4b".to_string(),
             display_name: "Gemma 3 4B (Balanced)".to_string(),
-            gguf_file: "gemma-3-4b-it-Q4_K_M.gguf".to_string(),
+            gguf_file: "google_gemma-3-4b-it-Q4_K_M.gguf".to_string(),
             template: "gemma3".to_string(),
-            download_url: "https://iqcapture.towardsgeneralintelligence.com/models/gemma-3-4b-it-Q4_K_M.gguf".to_string(),
+            download_url: "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf".to_string(),
             size_mb: 2374,
             context_size: 32768, // Supports 128k, but 32k is good for local·
             layer_count: 35,
