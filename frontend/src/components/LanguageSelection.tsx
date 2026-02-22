@@ -223,7 +223,7 @@ export function LanguageSelection({
           )}
           {selectedLanguage !== 'auto' && selectedLanguage !== 'auto-translate' && (
             <p className="text-gray-600">
-              Transcription will be optimized for <strong>{selectedLanguageName}</strong>
+              Transcription will be optimised for <strong>{selectedLanguageName}</strong>
             </p>
           )}
         </div>

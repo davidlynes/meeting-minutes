@@ -231,7 +231,7 @@ export function getModelTagline(modelName: string, speed: ProcessingSpeed, accur
   if (isQuantized) {
     const quantType = getModelType(modelName);
     if (quantType === 'q5_0') {
-      featureText += ', optimized';
+      featureText += ', optimised';
     } else if (quantType === 'q4_0') {
       featureText += ', ultra fast';
     }

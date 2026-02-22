@@ -626,7 +626,7 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
           </h3>
           <p className="text-blue-600 text-sm">
             {status === 'processing' 
-              ? 'Analyzing your transcript...' 
+              ? 'Analysing your transcript...'
               : 'Creating a detailed summary of your meeting...'}
           </p>
         </div>

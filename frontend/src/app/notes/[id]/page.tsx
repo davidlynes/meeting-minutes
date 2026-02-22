@@ -45,7 +45,7 @@ Team sync discussion about Q1 2024 goals and current project status.
 3. Team Concerns & Feedback
 
 ## Key Decisions
-- Prioritized mobile app development for Q1
+- Prioritised mobile app development for Q1
 - Scheduled weekly design reviews
 - Added two new features to the roadmap
 
@@ -74,7 +74,7 @@ Quarterly product review session with stakeholders.
 
 ## Discussion Points
 1. Q4 Performance Review
-2. Feature Prioritization
+2. Feature Prioritisation
 3. Customer Feedback Analysis
 
 ## Action Items
@@ -97,7 +97,7 @@ Quarterly product review session with stakeholders.
 
 ## Improvements
 - Enhanced search functionality
-- Better note organization
+- Better note organisation
 - Real-time collaboration
       `
     },
