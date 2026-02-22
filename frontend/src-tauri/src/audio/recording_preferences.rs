@@ -43,7 +43,7 @@ impl Default for RecordingPreferences {
 pub fn get_default_recordings_folder() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        // Windows: %USERPROFILE%\Music\meetily-recordings
+        // Windows: %USERPROFILE%\Music\iqcapture-recordings
         if let Some(music_dir) = dirs::audio_dir() {
             music_dir.join("IQCapture-recordings")
         } else {
@@ -56,7 +56,7 @@ pub fn get_default_recordings_folder() -> PathBuf {
 
     #[cfg(target_os = "macos")]
     {
-        // macOS: ~/Movies/meetily-recordings
+        // macOS: ~/Movies/iqcapture-recordings
         if let Some(movies_dir) = dirs::video_dir() {
             movies_dir.join("IQCapture-recordings")
         } else {
@@ -69,7 +69,7 @@ pub fn get_default_recordings_folder() -> PathBuf {
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        // Linux/Others: ~/Documents/meetily-recordings
+        // Linux/Others: ~/Documents/iqcapture-recordings
         dirs::document_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("IQCapture-recordings")
