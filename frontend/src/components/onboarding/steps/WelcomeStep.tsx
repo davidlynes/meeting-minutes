@@ -25,7 +25,7 @@ export function WelcomeStep() {
   return (
     <OnboardingContainer
       title="Welcome to IQ:capture"
-      description="Record. Transcribe. Summarize. All on your device."
+      description="Record. Transcribe. Summarise. All on your device."
       step={1}
       hideProgress={true}
     >

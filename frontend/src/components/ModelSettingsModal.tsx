@@ -807,7 +807,7 @@ export function ModelSettingsModal({
 
       <div className="space-y-4">
         <div>
-          <Label>Summarization Model</Label>
+          <Label>Summarisation Model</Label>
           <div className="flex space-x-2 mt-1">
             <Select
               value={modelConfig.provider}
