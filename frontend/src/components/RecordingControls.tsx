@@ -480,7 +480,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = React.memo(({
                         style={{
                           height: isRecording && !isPaused ? height : '4px',
                           opacity: isPaused ? 0.6 : 1,
-                          // CSS animation replaces JS setInterval for zero React overhead
+                          transformOrigin: 'center',
+                          transition: 'height 0.3s ease',
                           animation: isRecording && !isPaused
                             ? `pulseBar 0.6s ease-in-out ${index * 0.15}s infinite alternate`
                             : 'none',

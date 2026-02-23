@@ -26,7 +26,7 @@ export default function Home() {
   // Local page state (not moved to contexts)
   const [isRecording, setIsRecordingState] = useState(false);
   // Static bar heights — animation is handled via CSS to avoid 12,000 React renders/hour
-  const barHeights = ['58%', '76%', '58%'];
+  const barHeights = ['14px', '20px', '14px'];
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   // Use contexts for state management
