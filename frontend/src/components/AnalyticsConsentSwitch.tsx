@@ -6,6 +6,7 @@ import { AnalyticsContext } from './AnalyticsProvider';
 import { load } from '@tauri-apps/plugin-store';
 import { invoke } from '@tauri-apps/api/core';
 import { Analytics } from '@/lib/analytics';
+import { copyToClipboard } from '@/lib/clipboard';
 import AnalyticsDataModal from './AnalyticsDataModal';
 
 
@@ -38,7 +39,7 @@ export default function AnalyticsConsentSwitch() {
     if (!userId) return;
 
     try {
-      await navigator.clipboard.writeText(userId);
+      await copyToClipboard(userId);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
 

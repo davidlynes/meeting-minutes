@@ -3,6 +3,7 @@ import { Transcript, Summary } from '@/types';
 import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { toast } from 'sonner';
 import Analytics from '@/lib/analytics';
+import { copyToClipboard } from '@/lib/clipboard';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
 
 interface UseCopyOperationsProps {
@@ -89,7 +90,7 @@ export function useCopyOperations({
       .map(t => `${formatTime(t.audio_start_time, t.timestamp)} ${t.text}  `)
       .join('\n');
 
-    await navigator.clipboard.writeText(header + date + fullTranscript);
+    await copyToClipboard(header + date + fullTranscript);
     toast.success("Transcript copied to clipboard");
 
     // Track copy analytics
@@ -173,7 +174,7 @@ export function useCopyOperations({
       })}\n\n---\n\n`;
 
       const fullMarkdown = header + metadata + summaryMarkdown;
-      await navigator.clipboard.writeText(fullMarkdown);
+      await copyToClipboard(fullMarkdown);
 
       console.log('✅ Successfully copied to clipboard!');
       toast.success("Summary copied to clipboard");

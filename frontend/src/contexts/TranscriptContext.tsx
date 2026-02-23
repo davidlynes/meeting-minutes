@@ -7,6 +7,7 @@ import { useRecordingState } from './RecordingStateContext';
 import { transcriptService } from '@/services/transcriptService';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface TranscriptContextType {
   transcripts: Transcript[];
@@ -473,7 +474,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     const fullTranscript = transcripts
       .map(t => `${formatTime(t.audio_start_time)} ${t.text}`)
       .join('\n');
-    navigator.clipboard.writeText(fullTranscript);
+    copyToClipboard(fullTranscript);
 
     toast.success("Transcript copied to clipboard");
   }, [transcripts]);
