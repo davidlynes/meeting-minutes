@@ -32,6 +32,22 @@ pub struct Template {
 
     /// List of sections in the template
     pub sections: Vec<TemplateSection>,
+
+    /// Optional global instruction applied across all sections (from MongoDB)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub global_instruction: Option<String>,
+
+    /// Optional clinical safety rules (from MongoDB)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clinical_safety_rules: Option<Vec<String>>,
+
+    /// Template version for sync tracking (from MongoDB)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<u32>,
+
+    /// Last update timestamp for sync tracking (from MongoDB)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
 }
 
 impl Template {

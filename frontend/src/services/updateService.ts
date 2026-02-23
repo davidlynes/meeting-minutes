@@ -1,13 +1,14 @@
 /**
  * Update Service
  *
- * Handles automatic software updates using Tauri updater plugin.
- * Provides update checking, downloading, and installation functionality.
+ * Handles update checks via the backend release API (MongoDB-backed).
+ * Replaces the Tauri updater plugin approach with a simple HTTP check
+ * against our own backend, which serves release info from MongoDB.
  */
 
-import { check, Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
+
+const BACKEND_URL = 'http://localhost:5167';
 
 export interface UpdateInfo {
   available: boolean;
@@ -16,17 +17,12 @@ export interface UpdateInfo {
   date?: string;
   body?: string;
   downloadUrl?: string;
-}
-
-export interface UpdateProgress {
-  downloaded: number;
-  total: number;
-  percentage: number;
+  whatsNew?: string[];
 }
 
 /**
  * Update Service
- * Singleton service for managing app updates
+ * Singleton service for managing app updates via backend API
  */
 export class UpdateService {
   private updateCheckInProgress = false;
@@ -34,7 +30,7 @@ export class UpdateService {
   private readonly CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
-   * Check for available updates
+   * Check for available updates by querying our backend release API
    * @param force Force check even if recently checked
    * @returns Promise with update information
    */
@@ -61,15 +57,27 @@ export class UpdateService {
 
     try {
       const currentVersion = await getVersion();
-      const update = await check();
 
-      if (update?.available) {
+      const response = await fetch(
+        `${BACKEND_URL}/api/releases/latest?current_version=${encodeURIComponent(currentVersion)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Release API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.available) {
         return {
           available: true,
           currentVersion,
-          version: update.version,
-          date: update.date,
-          body: update.body,
+          version: data.version,
+          date: data.release_date,
+          body: data.release_notes,
+          downloadUrl: data.download_url,
+          whatsNew: data.whats_new,
         };
       }
 
@@ -82,34 +90,6 @@ export class UpdateService {
       throw error;
     } finally {
       this.updateCheckInProgress = false;
-    }
-  }
-
-  /**
-   * Download and install the available update
-   * @param update The update object from checkForUpdates
-   * @param onProgress Optional progress callback
-   * @returns Promise that resolves when download completes
-   */
-  async downloadAndInstall(
-    update: Update,
-    onProgress?: (progress: UpdateProgress) => void
-  ): Promise<void> {
-    try {
-      // Download the update
-      await update.download();
-
-      // Notify progress if callback provided
-      if (onProgress) {
-        onProgress({ downloaded: 100, total: 100, percentage: 100 });
-      }
-
-      // Install and relaunch
-      await update.install();
-      await relaunch();
-    } catch (error) {
-      console.error('Failed to download/install update:', error);
-      throw error;
     }
   }
 

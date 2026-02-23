@@ -10,6 +10,8 @@ from db import DatabaseManager
 import json
 from threading import Lock
 from transcript_processor import TranscriptProcessor
+from template_routes import router as template_router
+from release_routes import router as release_router
 import time
 
 # Load environment variables
@@ -49,6 +51,12 @@ app.add_middleware(
     allow_headers=["*"],     # Allow all headers
     max_age=3600,            # Cache preflight requests for 1 hour
 )
+
+# Register template API router (MongoDB-backed)
+app.include_router(template_router)
+
+# Register release API router (MongoDB-backed update checks)
+app.include_router(release_router)
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()
@@ -414,21 +422,6 @@ async def get_summary(meeting_id: str):
             # Add MeetingName to transformed data
             transformed_data["MeetingName"] = summary_data.get("MeetingName", "")
 
-            # Map backend sections to frontend sections
-            section_mapping = {
-                # "SessionSummary": "key_points",
-                # "ImmediateActionItems": "action_items",
-                # "KeyItemsDecisions": "decisions",
-                # "NextSteps": "next_steps",
-                # "CriticalDeadlines": "critical_deadlines",
-                # "People": "people"
-            }
-
-            # Add each section to transformed data
-            for backend_key, frontend_key in section_mapping.items():
-                if backend_key in summary_data and isinstance(summary_data[backend_key], dict):
-                    transformed_data[frontend_key] = summary_data[backend_key]
-            
             # Add meeting notes sections if available - PRESERVE ORDER AND HANDLE DUPLICATES
             if "MeetingNotes" in summary_data and isinstance(summary_data["MeetingNotes"], dict):
                 meeting_notes = summary_data["MeetingNotes"]

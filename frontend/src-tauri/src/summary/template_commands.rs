@@ -1,7 +1,7 @@
 use crate::summary::templates;
 use serde::{Deserialize, Serialize};
 use tauri::Runtime;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 /// Template metadata for UI display
 #[derive(Debug, Serialize, Deserialize)]
@@ -121,6 +121,124 @@ pub async fn api_validate_template<R: Runtime>(
             Err(e)
         }
     }
+}
+
+/// Result of a template sync operation
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncResult {
+    pub synced_count: u32,
+    pub failed_count: u32,
+    pub is_online: bool,
+}
+
+/// Sync response shape from backend API
+#[derive(Debug, Deserialize)]
+struct BackendSyncResponse {
+    templates: Vec<BackendTemplate>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BackendTemplate {
+    template_id: String,
+    name: String,
+    description: String,
+    sections: Vec<serde_json::Value>,
+    #[serde(default)]
+    global_instruction: Option<String>,
+    #[serde(default)]
+    clinical_safety_rules: Option<Vec<String>>,
+    #[serde(default)]
+    version: Option<u32>,
+    #[serde(default)]
+    updated_at: Option<String>,
+}
+
+/// Internal sync function (called from Tauri command and startup)
+pub async fn sync_templates_internal() -> SyncResult {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build();
+
+    let client = match client {
+        Ok(c) => c,
+        Err(e) => {
+            warn!("Failed to create HTTP client for template sync: {}", e);
+            return SyncResult { synced_count: 0, failed_count: 0, is_online: false };
+        }
+    };
+
+    let response = client
+        .get("http://localhost:5167/api/templates?client_id=default")
+        .send()
+        .await;
+
+    let response = match response {
+        Ok(r) => r,
+        Err(e) => {
+            info!("Template sync: backend not reachable ({}), using cached/bundled templates", e);
+            return SyncResult { synced_count: 0, failed_count: 0, is_online: false };
+        }
+    };
+
+    if !response.status().is_success() {
+        warn!("Template sync: backend returned status {}", response.status());
+        return SyncResult { synced_count: 0, failed_count: 0, is_online: false };
+    }
+
+    let body = match response.json::<BackendSyncResponse>().await {
+        Ok(b) => b,
+        Err(e) => {
+            warn!("Template sync: failed to parse response: {}", e);
+            return SyncResult { synced_count: 0, failed_count: 0, is_online: true };
+        }
+    };
+
+    let mut synced_count = 0u32;
+    let mut failed_count = 0u32;
+
+    for tmpl in &body.templates {
+        // Build template JSON that matches our local schema
+        let local_json = serde_json::json!({
+            "name": tmpl.name,
+            "description": tmpl.description,
+            "sections": tmpl.sections,
+            "global_instruction": tmpl.global_instruction,
+            "clinical_safety_rules": tmpl.clinical_safety_rules,
+            "version": tmpl.version,
+            "updated_at": tmpl.updated_at,
+        });
+
+        let json_string = serde_json::to_string_pretty(&local_json).unwrap_or_default();
+
+        // Validate before saving
+        match templates::validate_and_parse_template(&json_string) {
+            Ok(_) => {
+                match templates::save_synced_template(&tmpl.template_id, &json_string) {
+                    Ok(_) => synced_count += 1,
+                    Err(e) => {
+                        error!("Failed to save synced template '{}': {}", tmpl.template_id, e);
+                        failed_count += 1;
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Skipping invalid template '{}' from backend: {}", tmpl.template_id, e);
+                failed_count += 1;
+            }
+        }
+    }
+
+    info!("Template sync completed: {} synced, {} failed", synced_count, failed_count);
+    SyncResult { synced_count, failed_count, is_online: true }
+}
+
+/// Syncs templates from the backend (MongoDB) to the local synced cache
+#[tauri::command]
+pub async fn api_sync_templates<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+) -> Result<SyncResult, String> {
+    info!("api_sync_templates called");
+    Ok(sync_templates_internal().await)
 }
 
 #[cfg(test)]

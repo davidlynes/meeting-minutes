@@ -403,7 +403,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(Arc::new(RwLock::new(
@@ -502,6 +501,31 @@ pub fn run() {
             } else {
                 log::warn!("Failed to resolve resource directory for templates");
             }
+
+            // Initialize synced templates directory (MongoDB cache)
+            if let Some(mut data_dir) = dirs::data_dir() {
+                data_dir.push("IQcapture");
+                data_dir.push("synced_templates");
+                log::info!("Setting synced templates directory to: {:?}", data_dir);
+                summary::templates::set_synced_templates_dir(data_dir);
+            } else {
+                log::warn!("Failed to resolve data directory for synced templates");
+            }
+
+            // Non-blocking startup sync of templates from backend (MongoDB)
+            tauri::async_runtime::spawn(async {
+                log::info!("Starting background template sync...");
+                let result = summary::sync_templates_internal().await;
+                if result.is_online {
+                    log::info!(
+                        "Template sync completed: {} synced, {} failed",
+                        result.synced_count,
+                        result.failed_count
+                    );
+                } else {
+                    log::info!("Template sync: backend not available, using cached/bundled templates");
+                }
+            });
 
             Ok(())
         })
@@ -648,6 +672,7 @@ pub fn run() {
             summary::api_list_templates,
             summary::api_get_template_details,
             summary::api_validate_template,
+            summary::api_sync_templates,
             // Built-in AI commands
             summary::summary_engine::builtin_ai_list_models,
             summary::summary_engine::builtin_ai_get_model_info,
