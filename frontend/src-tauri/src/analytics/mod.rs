@@ -1,4 +1,5 @@
 pub mod analytics;
+pub mod advanced_logging;
 pub mod commands;
 pub mod panic_hook;
 

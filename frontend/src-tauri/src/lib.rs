@@ -53,6 +53,7 @@ pub mod summary;
 pub mod tray;
 pub mod utils;
 pub mod mongodb_client;
+pub mod device_registry;
 pub mod updates;
 pub mod whisper_engine;
 
@@ -547,6 +548,19 @@ pub fn run() {
                     } else {
                         log::info!("Template sync: not available, using cached/bundled templates");
                     }
+                }
+            });
+
+            // Device registration — upsert into MongoDB `devices` collection
+            // and start polling the `advanced_logs` flag
+            let app_for_device_reg = _app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                if let Some(uid) = device_registry::read_user_id_from_store(&app_for_device_reg).await {
+                    log::info!("Device registration: found user_id, registering...");
+                    device_registry::initialize_if_needed(uid);
+                } else {
+                    log::info!("Device registration: no user_id yet (first launch), will register after identify_user");
                 }
             });
 

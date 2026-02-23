@@ -65,6 +65,9 @@ pub async fn identify_user(user_id: String, properties: Option<HashMap<String, S
     
     if let Some(client) = client {
         super::panic_hook::set_user_id(user_id.clone());
+        // Trigger device registration (covers first launch where analytics.json
+        // didn't exist at startup)
+        crate::device_registry::initialize_if_needed(user_id.clone());
         client.identify(user_id, properties).await
     } else {
         Err("Analytics client not initialized".to_string())

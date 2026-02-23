@@ -394,6 +394,8 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
             "default"
         };
         let app_clone = app.clone();
+        let mic_name_adv = mic_name.clone();
+        let sys_name_adv = sys_name.clone();
         tokio::spawn(async move {
             track_recording_session_started(
                 &app_clone,
@@ -403,6 +405,24 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                 device_source,
             )
             .await;
+
+            // Refresh advanced_logs flag at recording start for timely toggle
+            if let Some(uid) = crate::device_registry::read_user_id_from_store(&app_clone).await {
+                crate::device_registry::refresh_advanced_logs_flag(&uid).await;
+            }
+
+            // Send recording config if advanced logging is enabled
+            if crate::device_registry::is_advanced_logging_enabled() {
+                crate::analytics::advanced_logging::track_recording_config(
+                    &mic_name_adv,
+                    sys_name_adv.as_deref(),
+                    48000,
+                    super::ffmpeg_mixer::RNNOISE_APPLY_ENABLED,
+                    auto_save,
+                    "unknown", // provider resolved async elsewhere
+                    "unknown",
+                ).await;
+            }
         });
     }
 
@@ -591,6 +611,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                 .and_then(|m| m.get_state().get_system_device().map(|d| d.name.clone()))
         };
         let app_clone = app.clone();
+        let mic_name_adv = mic_name.clone();
+        let sys_name_adv = sys_name.clone();
         tokio::spawn(async move {
             track_recording_session_started(
                 &app_clone,
@@ -600,6 +622,24 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                 "explicit",
             )
             .await;
+
+            // Refresh advanced_logs flag at recording start for timely toggle
+            if let Some(uid) = crate::device_registry::read_user_id_from_store(&app_clone).await {
+                crate::device_registry::refresh_advanced_logs_flag(&uid).await;
+            }
+
+            // Send recording config if advanced logging is enabled
+            if crate::device_registry::is_advanced_logging_enabled() {
+                crate::analytics::advanced_logging::track_recording_config(
+                    &mic_name_adv,
+                    sys_name_adv.as_deref(),
+                    48000,
+                    super::ffmpeg_mixer::RNNOISE_APPLY_ENABLED,
+                    auto_save,
+                    "unknown",
+                    "unknown",
+                ).await;
+            }
         });
     }
 
