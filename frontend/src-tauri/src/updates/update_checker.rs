@@ -7,8 +7,12 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-const MONGO_URI: &str =
-    "***REMOVED***";
+/// MongoDB URI is injected at compile time via the MONGODB_URI environment variable.
+/// This keeps credentials out of source control.
+///
+/// Set it before building:
+///   set MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+const MONGO_URI: &str = env!("MONGODB_URI", "MONGODB_URI env var must be set at build time");
 const DB_NAME: &str = "iqcapture";
 const COLLECTION_NAME: &str = "releases";
 
