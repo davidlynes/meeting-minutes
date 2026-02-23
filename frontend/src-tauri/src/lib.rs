@@ -397,7 +397,14 @@ pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
 }
 
+// TODO: Remove after verifying PostHog crash reporting
+#[tauri::command]
+fn test_panic() {
+    panic!("test crash for PostHog verification");
+}
+
 pub fn run() {
+    analytics::panic_hook::setup_panic_hook();
     log::set_max_level(log::LevelFilter::Info);
 
     tauri::Builder::default()
@@ -531,6 +538,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            test_panic, // TODO: Remove after verifying PostHog crash reporting
             start_recording,
             stop_recording,
             is_recording,
