@@ -21,13 +21,6 @@ if %ERRORLEVEL% NEQ 0 (
 :: Use Ninja generator (CMake may not support the latest VS generator yet)
 set CMAKE_GENERATOR=Ninja
 
-:: Ensure MongoDB URI is set for update checker (compile-time embed)
-if not defined MONGODB_URI (
-    echo ERROR: MONGODB_URI environment variable is not set.
-    echo Set it before building: set MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
-    exit /b 1
-)
-
 :: Build llama-helper sidecar binary
 echo.
 echo Building llama-helper...

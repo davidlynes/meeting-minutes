@@ -168,7 +168,7 @@ pub async fn sync_templates_internal() -> SyncResult {
     };
 
     let response = client
-        .get("http://localhost:5167/api/templates?client_id=default")
+        .get(format!("{}/api/templates?client_id=default", crate::api::api::APP_SERVER_URL))
         .send()
         .await;
 
