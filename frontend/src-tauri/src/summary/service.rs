@@ -18,6 +18,14 @@ static METADATA_CACHE: Lazy<ModelMetadataCache> = Lazy::new(|| {
     ModelMetadataCache::new(Duration::from_secs(300))
 });
 
+// Reusable HTTP client — avoids per-summary DNS resolution, connection pool init, and TLS setup
+static HTTP_CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .pool_max_idle_per_host(4)
+        .build()
+        .expect("Failed to build HTTP client")
+});
+
 // Global registry for cancellation tokens (thread-safe)
 static CANCELLATION_REGISTRY: Lazy<Arc<Mutex<HashMap<String, CancellationToken>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
@@ -243,8 +251,8 @@ impl SummaryService {
         // Get app data directory for BuiltInAI provider
         let app_data_dir = _app.path().app_data_dir().ok();
 
-        // Generate summary
-        let client = reqwest::Client::new();
+        // Reuse global HTTP client (avoids 50-200ms connection setup per summary)
+        let client = HTTP_CLIENT.clone();
         let result = generate_meeting_summary(
             &client,
             &provider,

@@ -37,7 +37,7 @@ interface SidebarItem {
   children?: SidebarItem[];
 }
 
-const Sidebar: React.FC = () => {
+const Sidebar: React.FC = React.memo(() => {
   const router = useRouter();
   const pathname = usePathname();
   const {
@@ -101,77 +101,73 @@ const Sidebar: React.FC = () => {
 
   const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; itemId: string | null }>({ isOpen: false, itemId: null });
 
+  // Fetch both model config and transcript settings in a single effect (same dependency)
   useEffect(() => {
-    // Note: Don't set hardcoded defaults - let DB be the source of truth
-    const fetchModelConfig = async () => {
-      // Only make API call if serverAddress is loaded
-      if (!serverAddress) {
-        console.log('Waiting for server address to load before fetching model config');
-        return;
-      }
+    if (!serverAddress) return;
 
-      try {
-        const data = await invoke('api_get_model_config') as any;
-        if (data && data.provider !== null) {
-          // Fetch API key if not included and provider requires it
-          if (data.provider !== 'ollama' && !data.apiKey) {
-            try {
-              const apiKeyData = await invoke('api_get_api_key', {
-                provider: data.provider
-              }) as string;
-              data.apiKey = apiKeyData;
-            } catch (err) {
-              console.error('Failed to fetch API key:', err);
+    const fetchConfigs = async () => {
+      // Fetch model config and transcript settings in parallel
+      const [modelResult, transcriptResult] = await Promise.allSettled([
+        (async () => {
+          const data = await invoke('api_get_model_config') as any;
+          if (data && data.provider !== null) {
+            if (data.provider !== 'ollama' && !data.apiKey) {
+              try {
+                const apiKeyData = await invoke('api_get_api_key', {
+                  provider: data.provider
+                }) as string;
+                data.apiKey = apiKeyData;
+              } catch (err) {
+                console.error('Failed to fetch API key:', err);
+              }
             }
+            setModelConfig(data);
           }
-          setModelConfig(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch model config:', error);
+        })(),
+        (async () => {
+          const data = await invoke('api_get_transcript_config') as any;
+          if (data && data.provider !== null) {
+            setTranscriptModelConfig(data);
+          }
+        })(),
+      ]);
+
+      if (modelResult.status === 'rejected') {
+        console.error('Failed to fetch model config:', modelResult.reason);
+      }
+      if (transcriptResult.status === 'rejected') {
+        console.error('Failed to fetch transcript settings:', transcriptResult.reason);
       }
     };
 
-    fetchModelConfig();
-  }, [serverAddress]);
-
-
-  useEffect(() => {
-    // Note: Don't set hardcoded defaults - let DB be the source of truth
-    const fetchTranscriptSettings = async () => {
-      // Only make API call if serverAddress is loaded
-      if (!serverAddress) {
-        console.log('Waiting for server address to load before fetching transcript settings');
-        return;
-      }
-
-      try {
-        const data = await invoke('api_get_transcript_config') as any;
-        if (data && data.provider !== null) {
-          setTranscriptModelConfig(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch transcript settings:', error);
-      }
-    };
-    fetchTranscriptSettings();
+    fetchConfigs();
   }, [serverAddress]);
 
   // Listen for model config updates from other components
+  // Fix: await the promise in cleanup to prevent listener leak on fast unmount
   useEffect(() => {
+    let unmounted = false;
+    let cleanup: (() => void) | undefined;
+
     const setupListener = async () => {
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
-        console.log('Sidebar received model-config-updated event:', event.payload);
-        setModelConfig(event.payload);
+        if (!unmounted) {
+          setModelConfig(event.payload);
+        }
       });
-
-      return unlisten;
+      if (unmounted) {
+        // Component already unmounted while we were setting up
+        unlisten();
+      } else {
+        cleanup = unlisten;
+      }
     };
 
-    let cleanup: (() => void) | undefined;
-    setupListener().then(fn => cleanup = fn);
+    setupListener();
 
     return () => {
+      unmounted = true;
       cleanup?.();
     };
   }, []);
@@ -847,6 +843,8 @@ const Sidebar: React.FC = () => {
       </Dialog>
     </div>
   );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 export default Sidebar;

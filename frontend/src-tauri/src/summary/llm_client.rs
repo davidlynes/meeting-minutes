@@ -5,7 +5,17 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-const REQUEST_TIMEOUT_DURATION: Duration = Duration::from_secs(300);
+/// Returns the appropriate request timeout for a given LLM provider.
+/// Cloud APIs are fast to respond; local/custom endpoints need more time.
+fn timeout_for_provider(provider: &LLMProvider) -> Duration {
+    match provider {
+        LLMProvider::OpenAI | LLMProvider::Claude | LLMProvider::Groq | LLMProvider::OpenRouter => {
+            Duration::from_secs(120)
+        }
+        LLMProvider::CustomOpenAI => Duration::from_secs(180),
+        LLMProvider::Ollama | LLMProvider::BuiltInAI => Duration::from_secs(300),
+    }
+}
 
 // Generic structure for OpenAI-compatible API chat messages
 #[derive(Debug, Serialize)]
@@ -255,21 +265,23 @@ pub async fn generate_summary(
 
     info!("🐞 LLM Request to {}: model={}", provider_name(provider), model_name);
 
-    // Send request with timeout and cancellation support
+    // Send request with per-provider timeout and cancellation support
+    let timeout = timeout_for_provider(provider);
     let request_future = client
         .post(api_url)
         .headers(headers)
         .json(&request_body)
-        .timeout(REQUEST_TIMEOUT_DURATION)
+        .timeout(timeout)
         .send();
 
     // Use tokio::select to race between cancellation and request completion
+    let timeout_secs = timeout.as_secs();
     let response = if let Some(token) = cancellation_token {
         tokio::select! {
             result = request_future => {
                 result.map_err(|e| {
                     if e.is_timeout() {
-                        format!("LLM request timed out after 60 seconds")
+                        format!("LLM request timed out after {} seconds", timeout_secs)
                     } else {
                         format!("Failed to send request to LLM: {}", e)
                     }
@@ -282,7 +294,7 @@ pub async fn generate_summary(
     } else {
         request_future.await.map_err(|e| {
             if e.is_timeout() {
-                format!("LLM request timed out after 60 seconds")
+                format!("LLM request timed out after {} seconds", timeout_secs)
             } else {
                 format!("Failed to send request to LLM: {}", e)
             }

@@ -100,13 +100,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
+        {/* App-level providers (rarely change) */}
         <AnalyticsProvider>
-          <RecordingStateProvider>
-            <TranscriptProvider>
+          <OnboardingProvider>
+            <UpdateCheckProvider>
+              {/* Config providers (change on settings update) */}
               <ConfigProvider>
                 <OllamaDownloadProvider>
-                  <OnboardingProvider>
-                    <UpdateCheckProvider>
+                  {/* Recording providers (change during recording) — isolated from config */}
+                  <RecordingStateProvider>
+                    <TranscriptProvider>
                       <SidebarProvider>
                         <TooltipProvider>
                           <RecordingPostProcessingProvider>
@@ -125,13 +128,12 @@ export default function RootLayout({
                           </RecordingPostProcessingProvider>
                         </TooltipProvider>
                       </SidebarProvider>
-                    </UpdateCheckProvider>
-                  </OnboardingProvider>
-
+                    </TranscriptProvider>
+                  </RecordingStateProvider>
                 </OllamaDownloadProvider>
               </ConfigProvider>
-            </TranscriptProvider>
-          </RecordingStateProvider>
+            </UpdateCheckProvider>
+          </OnboardingProvider>
         </AnalyticsProvider>
         <Toaster position="bottom-center" richColors closeButton />
       </body>

@@ -254,21 +254,30 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
           // Only combine if we have unique new transcripts
           if (uniqueNewTranscripts.length === 0) {
-            console.log('No unique transcripts to add - all were duplicates');
             return prev; // No new unique transcripts to add
           }
 
-          console.log(`Adding ${uniqueNewTranscripts.length} unique transcripts out of ${allNewTranscripts.length} received`);
-
-          // Merge with existing transcripts, maintaining chronological order
+          // Optimized merge: since prev is already sorted and new transcripts
+          // typically arrive in order, just append and only sort if out of order.
+          // This avoids O(n log n) sort on every addition.
           const combined = [...prev, ...uniqueNewTranscripts];
+          const lastPrevKey = prev.length > 0
+            ? (prev[prev.length - 1].chunk_start_time || 0) * 1e9 + (prev[prev.length - 1].sequence_id || 0)
+            : -Infinity;
+          const firstNewKey = uniqueNewTranscripts.length > 0
+            ? (uniqueNewTranscripts[0].chunk_start_time || 0) * 1e9 + (uniqueNewTranscripts[0].sequence_id || 0)
+            : Infinity;
 
-          // Sort by chunk_start_time first, then by sequence_id
-          return combined.sort((a, b) => {
-            const chunkTimeDiff = (a.chunk_start_time || 0) - (b.chunk_start_time || 0);
-            if (chunkTimeDiff !== 0) return chunkTimeDiff;
-            return (a.sequence_id || 0) - (b.sequence_id || 0);
-          });
+          // Only sort if new transcripts are out of order relative to existing ones
+          if (firstNewKey < lastPrevKey) {
+            combined.sort((a, b) => {
+              const chunkTimeDiff = (a.chunk_start_time || 0) - (b.chunk_start_time || 0);
+              if (chunkTimeDiff !== 0) return chunkTimeDiff;
+              return (a.sequence_id || 0) - (b.sequence_id || 0);
+            });
+          }
+
+          return combined;
         });
 
         // Log the processing summary
@@ -427,29 +436,26 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     };
 
     setTranscripts(prev => {
-      console.log('📊 Current transcripts count before update:', prev.length);
-
       // Check if this transcript already exists
       const exists = prev.some(
         t => t.text === update.text && t.timestamp === update.timestamp
       );
       if (exists) {
-        console.log('🚫 Duplicate transcript detected, skipping:', update.text.substring(0, 30) + '...');
         return prev;
       }
 
-      // Add new transcript and sort by sequence_id to maintain order
+      // Append and only sort if out of order (avoids O(n log n) on every addition)
+      const lastSeq = prev.length > 0 ? (prev[prev.length - 1].sequence_id || 0) : -1;
+      const newSeq = newTranscript.sequence_id || 0;
+
+      if (newSeq >= lastSeq) {
+        // Common case: already in order, just append
+        return [...prev, newTranscript];
+      }
+
+      // Rare case: out of order — full sort needed
       const updated = [...prev, newTranscript];
-      const sorted = updated.sort((a, b) => (a.sequence_id || 0) - (b.sequence_id || 0));
-
-      console.log('✅ Added new transcript. New count:', sorted.length);
-      console.log('📝 Latest transcript:', {
-        id: newTranscript.id,
-        text: newTranscript.text.substring(0, 30) + '...',
-        sequence_id: newTranscript.sequence_id
-      });
-
-      return sorted;
+      return updated.sort((a, b) => (a.sequence_id || 0) - (b.sequence_id || 0));
     });
   }, []);
 

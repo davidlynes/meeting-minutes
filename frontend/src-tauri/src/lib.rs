@@ -457,27 +457,25 @@ pub fn run() {
             // Set models directory to use app_data_dir (unified storage location)
             whisper_engine::commands::set_models_directory(&_app.handle());
 
-            // Initialize Whisper engine on startup
-            tauri::async_runtime::spawn(async {
-                if let Err(e) = whisper_engine::commands::whisper_init().await {
-                    log::error!("Failed to initialize Whisper engine on startup: {}", e);
-                }
-            });
-
-            // Set Parakeet models directory
+            // Set Parakeet models directory (must happen before init)
             parakeet_engine::commands::set_models_directory(&_app.handle());
 
-            // Initialize Parakeet engine on startup
-            tauri::async_runtime::spawn(async {
-                if let Err(e) = parakeet_engine::commands::parakeet_init().await {
-                    log::error!("Failed to initialize Parakeet engine on startup: {}", e);
-                }
-            });
-
-            // Initialize ModelManager for summary engine (async, non-blocking)
+            // Initialize Whisper, Parakeet, and ModelManager in parallel
             let app_handle_for_model_manager = _app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                match summary::summary_engine::commands::init_model_manager_at_startup(&app_handle_for_model_manager).await {
+                let (whisper_result, parakeet_result, model_manager_result) = tokio::join!(
+                    whisper_engine::commands::whisper_init(),
+                    parakeet_engine::commands::parakeet_init(),
+                    summary::summary_engine::commands::init_model_manager_at_startup(&app_handle_for_model_manager),
+                );
+
+                if let Err(e) = whisper_result {
+                    log::error!("Failed to initialize Whisper engine on startup: {}", e);
+                }
+                if let Err(e) = parakeet_result {
+                    log::error!("Failed to initialize Parakeet engine on startup: {}", e);
+                }
+                match model_manager_result {
                     Ok(_) => log::info!("ModelManager initialized successfully at startup"),
                     Err(e) => {
                         log::warn!("Failed to initialize ModelManager at startup: {}", e);

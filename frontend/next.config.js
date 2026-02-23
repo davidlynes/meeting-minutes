@@ -18,6 +18,35 @@ const nextConfig = {
         path: false,
         os: false,
       };
+
+      // Split heavy dependencies into separate chunks for better caching
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          ...config.optimization?.splitChunks,
+          cacheGroups: {
+            ...config.optimization?.splitChunks?.cacheGroups,
+            framerMotion: {
+              test: /[\\/]node_modules[\\/]framer-motion[\\/]/,
+              name: 'framer-motion',
+              chunks: 'all',
+              priority: 20,
+            },
+            blocknote: {
+              test: /[\\/]node_modules[\\/]@blocknote[\\/]/,
+              name: 'blocknote',
+              chunks: 'all',
+              priority: 20,
+            },
+            tanstack: {
+              test: /[\\/]node_modules[\\/]@tanstack[\\/]/,
+              name: 'tanstack',
+              chunks: 'all',
+              priority: 20,
+            },
+          },
+        },
+      };
     }
     return config;
   },

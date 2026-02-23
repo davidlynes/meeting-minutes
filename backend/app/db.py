@@ -156,6 +156,11 @@ class DatabaseManager:
                 )
             """)
 
+            # Performance indexes for common queries
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_transcripts_meeting_id ON transcripts(meeting_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_summary_processes_meeting_id ON summary_processes(meeting_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings(created_at)")
+
             conn.commit()
 
     @asynccontextmanager

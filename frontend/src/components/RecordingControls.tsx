@@ -2,7 +2,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { appDataDir } from '@tauri-apps/api/path';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Play, Pause, Square, Mic, AlertCircle, X } from 'lucide-react';
 import { ProcessRequest, SummaryResponse } from '@/types/summary';
 import { listen } from '@tauri-apps/api/event';
@@ -28,7 +28,7 @@ interface RecordingControlsProps {
   meetingName?: string;
 }
 
-export const RecordingControls: React.FC<RecordingControlsProps> = ({
+export const RecordingControls: React.FC<RecordingControlsProps> = React.memo(({
   isRecording,
   barHeights,
   onRecordingStop,
@@ -475,11 +475,15 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                     {barHeights.map((height, index) => (
                       <div
                         key={index}
-                        className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-orange-500' : 'bg-red-500'
+                        className={`w-1 rounded-full ${isPaused ? 'bg-orange-500' : 'bg-red-500'
                           }`}
                         style={{
                           height: isRecording && !isPaused ? height : '4px',
                           opacity: isPaused ? 0.6 : 1,
+                          // CSS animation replaces JS setInterval for zero React overhead
+                          animation: isRecording && !isPaused
+                            ? `pulseBar 0.6s ease-in-out ${index * 0.15}s infinite alternate`
+                            : 'none',
                         }}
                       />
                     ))}
@@ -529,4 +533,6 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       </div>
     </TooltipProvider>
   );
-};
+});
+
+RecordingControls.displayName = 'RecordingControls';

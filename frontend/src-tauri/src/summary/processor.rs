@@ -44,9 +44,9 @@ pub fn chunk_text(text: &str, chunk_size_tokens: usize, overlap_tokens: usize) -
     let chunk_size_chars = (chunk_size_tokens as f64 * chars_per_token).ceil() as usize;
     let overlap_chars = (overlap_tokens as f64 * chars_per_token).ceil() as usize;
 
-    // Collect characters for indexing (needed for proper Unicode support)
-    let chars: Vec<char> = text.chars().collect();
-    let total_chars = chars.len();
+    // Build char-index-to-byte-offset map using char_indices() — avoids full Vec<char> allocation
+    let char_byte_offsets: Vec<usize> = text.char_indices().map(|(i, _)| i).collect();
+    let total_chars = char_byte_offsets.len();
 
     if total_chars <= chunk_size_chars {
         info!("Text is shorter than chunk size, returning as a single chunk.");
@@ -61,9 +61,13 @@ pub fn chunk_text(text: &str, chunk_size_tokens: usize, overlap_tokens: usize) -
     while start_char < total_chars {
         let end_char = (start_char + chunk_size_chars).min(total_chars);
 
-        // Convert character indices to byte indices for string slicing
-        let start_byte: usize = chars[..start_char].iter().map(|c| c.len_utf8()).sum();
-        let mut end_byte: usize = chars[..end_char].iter().map(|c| c.len_utf8()).sum();
+        // Convert character indices to byte indices using pre-built offset map
+        let start_byte = char_byte_offsets[start_char];
+        let mut end_byte = if end_char < total_chars {
+            char_byte_offsets[end_char]
+        } else {
+            text.len()
+        };
 
         // Try to break at sentence or word boundary for cleaner chunks
         if end_char < total_chars {

@@ -46,6 +46,8 @@ pub struct WhisperEngine {
     cancel_download_flag: Arc<RwLock<Option<String>>>, // Model name being cancelled
     // Active downloads tracking to prevent concurrent downloads
     active_downloads: Arc<RwLock<HashSet<String>>>, // Set of models currently being downloaded
+    // Cache of validated model files: maps file path to file size at validation time
+    validated_models: Arc<RwLock<HashMap<PathBuf, u64>>>,
 }
 
 impl WhisperEngine {
@@ -161,6 +163,8 @@ impl WhisperEngine {
             cancel_download_flag: Arc::new(RwLock::new(None)),
             // Initialize active downloads tracking
             active_downloads: Arc::new(RwLock::new(HashSet::new())),
+            // Initialize model validation cache
+            validated_models: Arc::new(RwLock::new(HashMap::new())),
         };
         
         Ok(engine)
@@ -202,15 +206,28 @@ impl WhisperEngine {
                         let expected_min_size_mb = (size_mb as f64 * 0.9) as u64; // Allow 90% of expected size as minimum for more accurate corruption detection
 
                         if file_size_mb >= expected_min_size_mb && file_size_mb > 1 {
-                            // File size looks good, but let's also check if it's a valid GGML file
-                            match self.validate_model_file(&model_path).await {
-                                Ok(_) => ModelStatus::Available,
-                                Err(_) => {
-                                    log::warn!("Model file {} has correct size but appears corrupted (failed validation)",
-                                             filename);
-                                    ModelStatus::Corrupted {
-                                        file_size: file_size_bytes,
-                                        expected_min_size: (expected_min_size_mb * 1024 * 1024) as u64
+                            // Check validation cache first — skip I/O if path+size unchanged
+                            let cached = {
+                                let cache = self.validated_models.read().await;
+                                cache.get(&model_path) == Some(&file_size_bytes)
+                            };
+                            if cached {
+                                ModelStatus::Available
+                            } else {
+                                match self.validate_model_file(&model_path).await {
+                                    Ok(_) => {
+                                        // Cache the successful validation
+                                        let mut cache = self.validated_models.write().await;
+                                        cache.insert(model_path.clone(), file_size_bytes);
+                                        ModelStatus::Available
+                                    }
+                                    Err(_) => {
+                                        log::warn!("Model file {} has correct size but appears corrupted (failed validation)",
+                                                 filename);
+                                        ModelStatus::Corrupted {
+                                            file_size: file_size_bytes,
+                                            expected_min_size: (expected_min_size_mb * 1024 * 1024) as u64
+                                        }
                                     }
                                 }
                             }
@@ -302,9 +319,11 @@ impl WhisperEngine {
 
                 // Enable flash attention for high-end GPUs (Metal on Apple Silicon, CUDA on NVIDIA)
                 // Flash attention provides 20-40% speedup but requires stable GPU drivers
+                // Enable flash attention for Medium+ tier GPUs (covers M2/M3 Pro, RTX 4060+)
+                // Provides 20-40% transcription speedup with stable GPU drivers
                 let flash_attn_enabled = match (&hardware_profile.gpu_type, &hardware_profile.performance_tier) {
-                    (crate::audio::GpuType::Metal, crate::audio::PerformanceTier::Ultra | crate::audio::PerformanceTier::High) => true,
-                    (crate::audio::GpuType::Cuda, crate::audio::PerformanceTier::Ultra | crate::audio::PerformanceTier::High) => true,
+                    (crate::audio::GpuType::Metal, crate::audio::PerformanceTier::Ultra | crate::audio::PerformanceTier::High | crate::audio::PerformanceTier::Medium) => true,
+                    (crate::audio::GpuType::Cuda, crate::audio::PerformanceTier::Ultra | crate::audio::PerformanceTier::High | crate::audio::PerformanceTier::Medium) => true,
                     _ => false, // Conservative: disable for other GPU types and lower tiers
                 };
 

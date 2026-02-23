@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::collections::VecDeque;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -6,12 +7,16 @@ use anyhow::Result;
 use log::{debug, error, info, warn};
 use crate::{perf_debug, batch_audio_metric};
 use super::batch_processor::AudioMetricsBatcher;
+use super::buffer_pool::AudioBufferPool;
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
 
 use super::devices::AudioDevice;
 use super::recording_state::{AudioChunk, AudioError, RecordingState, DeviceType};
 use super::audio_processing::{audio_to_mono, LoudnessNormalizer, NoiseSuppressionProcessor, HighPassFilter};
 use super::vad::{ContinuousVadProcessor};
+
+/// Thread-safe sample counter (replaces unsafe static mut)
+static RING_BUFFER_SAMPLE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Ring buffer for synchronized audio mixing
 /// Accumulates samples from mic and system streams until we have aligned windows
@@ -20,6 +25,9 @@ struct AudioMixerRingBuffer {
     system_buffer: VecDeque<f32>,
     window_size_samples: usize,  // Fixed mixing window (e.g., 50ms)
     max_buffer_size: usize,  // Safety limit (e.g., 100ms)
+    // Pre-allocated extraction buffers to avoid per-window allocations
+    mic_extract_buf: Vec<f32>,
+    sys_extract_buf: Vec<f32>,
 }
 
 impl AudioMixerRingBuffer {
@@ -43,18 +51,17 @@ impl AudioMixerRingBuffer {
             system_buffer: VecDeque::with_capacity(max_buffer_size),
             window_size_samples,
             max_buffer_size,
+            mic_extract_buf: vec![0.0; window_size_samples],
+            sys_extract_buf: vec![0.0; window_size_samples],
         }
     }
 
     fn add_samples(&mut self, device_type: DeviceType, samples: Vec<f32>) {
-        // Log buffer health periodically for diagnostics
-        static mut SAMPLE_COUNTER: u64 = 0;
-        unsafe {
-            SAMPLE_COUNTER += 1;
-            if SAMPLE_COUNTER % 200 == 0 {
-                debug!("📊 Ring buffer status: mic={} samples, sys={} samples (max={})",
-                       self.mic_buffer.len(), self.system_buffer.len(), self.max_buffer_size);
-            }
+        // Log buffer health periodically for diagnostics (thread-safe AtomicU64)
+        let count = RING_BUFFER_SAMPLE_COUNTER.fetch_add(1, AtomicOrdering::Relaxed);
+        if count % 200 == 0 {
+            debug!("📊 Ring buffer status: mic={} samples, sys={} samples (max={})",
+                   self.mic_buffer.len(), self.system_buffer.len(), self.max_buffer_size);
         }
 
         match device_type {
@@ -65,22 +72,18 @@ impl AudioMixerRingBuffer {
         // CRITICAL FIX: Add warnings before dropping samples
         // This helps diagnose timing issues in production
         if self.mic_buffer.len() > self.max_buffer_size {
+            let excess = self.mic_buffer.len() - self.max_buffer_size;
             warn!("⚠️ Microphone buffer overflow: {} > {} samples, dropping oldest {} samples",
-                  self.mic_buffer.len(), self.max_buffer_size,
-                  self.mic_buffer.len() - self.max_buffer_size);
+                  self.mic_buffer.len(), self.max_buffer_size, excess);
+            // Bulk drain instead of per-element pop_front
+            self.mic_buffer.drain(0..excess);
         }
         if self.system_buffer.len() > self.max_buffer_size {
+            let excess = self.system_buffer.len() - self.max_buffer_size;
             error!("🔴 SYSTEM AUDIO BUFFER OVERFLOW: {} > {} samples, dropping {} samples - THIS CAUSES DISTORTION!",
-                  self.system_buffer.len(), self.max_buffer_size,
-                  self.system_buffer.len() - self.max_buffer_size);
-        }
-
-        // Safety: prevent buffer overflow (keep only last 200ms)
-        while self.mic_buffer.len() > self.max_buffer_size {
-            self.mic_buffer.pop_front();
-        }
-        while self.system_buffer.len() > self.max_buffer_size {
-            self.system_buffer.pop_front();
+                  self.system_buffer.len(), self.max_buffer_size, excess);
+            // Bulk drain instead of per-element pop_front
+            self.system_buffer.drain(0..excess);
         }
     }
 
@@ -94,50 +97,50 @@ impl AudioMixerRingBuffer {
             return None;
         }
 
-        // Extract mic window with zero-padding for incomplete buffers
-        // Zero-padding (silence) is preferred over last-sample-hold to prevent artifacts
+        let ws = self.window_size_samples;
 
-        // Extract mic window (or pad with zeros if insufficient data)
-        let mic_window = if self.mic_buffer.len() >= self.window_size_samples {
-            // Enough mic data - drain window
-            self.mic_buffer.drain(0..self.window_size_samples).collect()
+        // Extract mic window into pre-allocated buffer (avoids alloc per window)
+        if self.mic_buffer.len() >= ws {
+            let buf = &mut self.mic_extract_buf;
+            for (i, sample) in self.mic_buffer.drain(0..ws).enumerate() {
+                buf[i] = sample;
+            }
         } else if !self.mic_buffer.is_empty() {
-            // Some mic data but not enough - consume all + pad with zeros
-            let available: Vec<f32> = self.mic_buffer.drain(..).collect();
-            let mut padded = Vec::with_capacity(self.window_size_samples);
-            padded.extend_from_slice(&available);
-
-            // Use zero-padding (silence) to prevent repetition artifacts
-            // Zero-padding is inaudible at 48kHz sample rate
-            padded.resize(self.window_size_samples, 0.0);
-
-            padded
+            let available = self.mic_buffer.len();
+            let buf = &mut self.mic_extract_buf;
+            for (i, sample) in self.mic_buffer.drain(..).enumerate() {
+                buf[i] = sample;
+            }
+            // Zero-pad remainder (silence)
+            for sample in buf[available..ws].iter_mut() {
+                *sample = 0.0;
+            }
         } else {
-            // No mic data - return silence
-            vec![0.0; self.window_size_samples]
+            self.mic_extract_buf.iter_mut().for_each(|s| *s = 0.0);
         };
 
-        // Extract system window (or pad with zeros if insufficient data)
-        let sys_window = if self.system_buffer.len() >= self.window_size_samples {
-            // Enough system data - drain window
-            self.system_buffer.drain(0..self.window_size_samples).collect()
+        // Extract system window into pre-allocated buffer
+        if self.system_buffer.len() >= ws {
+            let buf = &mut self.sys_extract_buf;
+            for (i, sample) in self.system_buffer.drain(0..ws).enumerate() {
+                buf[i] = sample;
+            }
         } else if !self.system_buffer.is_empty() {
-            // Some system data but not enough - consume all + pad with zeros
-            let available: Vec<f32> = self.system_buffer.drain(..).collect();
-            let mut padded = Vec::with_capacity(self.window_size_samples);
-            padded.extend_from_slice(&available);
-
-            // Use zero-padding (silence) to prevent repetition artifacts
-            // Zero-padding is inaudible at 48kHz sample rate
-            padded.resize(self.window_size_samples, 0.0);
-
-            padded
+            let available = self.system_buffer.len();
+            let buf = &mut self.sys_extract_buf;
+            for (i, sample) in self.system_buffer.drain(..).enumerate() {
+                buf[i] = sample;
+            }
+            // Zero-pad remainder (silence)
+            for sample in buf[available..ws].iter_mut() {
+                *sample = 0.0;
+            }
         } else {
-            // No system data - return silence
-            vec![0.0; self.window_size_samples]
+            self.sys_extract_buf.iter_mut().for_each(|s| *s = 0.0);
         };
 
-        Some((mic_window, sys_window))
+        // Return clones of the extraction buffers — these are reused next window
+        Some((self.mic_extract_buf.clone(), self.sys_extract_buf.clone()))
     }
 
 }
@@ -612,7 +615,7 @@ impl AudioCapture {
             sample_rate: if self.needs_resampling { 48000 } else { self.sample_rate },
             timestamp,
             chunk_id,
-            device_type: self.device_type.clone(),
+            device_type: self.device_type,
         };
 
         // NOTE: Raw audio is NOT sent to recording saver to prevent echo
@@ -791,13 +794,13 @@ impl AudioPipeline {
                     // Logging in hot paths causes severe performance degradation
                     self.processed_chunks += 1;
 
-                    // Smart batching: collect metrics instead of logging every chunk
-                    if let Some(ref batcher) = self.metrics_batcher {
+                    // Smart batching: only compute metrics if batcher exists
+                    if self.metrics_batcher.is_some() {
                         let avg_level = chunk.data.iter().map(|&x| x.abs()).sum::<f32>() / chunk.data.len() as f32;
                         let duration_ms = chunk.data.len() as f64 / chunk.sample_rate as f64 * 1000.0;
 
                         batch_audio_metric!(
-                            Some(batcher),
+                            self.metrics_batcher.as_ref(),
                             chunk.chunk_id,
                             chunk.data.len(),
                             duration_ms,
@@ -835,7 +838,7 @@ impl AudioPipeline {
                     // STEP 1: Add raw audio to ring buffer for mixing
                     // Microphone audio is already normalized at capture level (AudioCapture)
                     // System audio remains raw
-                    self.ring_buffer.add_samples(chunk.device_type.clone(), chunk.data);
+                    self.ring_buffer.add_samples(chunk.device_type, chunk.data);
 
                     // STEP 2: Mix audio in fixed windows when both streams have sufficient data
                     while self.ring_buffer.can_mix() {
@@ -896,9 +899,10 @@ impl AudioPipeline {
                             }
 
                             // STEP 4: Send mixed audio for recording (WAV file)
+                            // Move the buffer instead of cloning — avoids ~115KB copy per 600ms window
                             if let Some(ref sender) = self.recording_sender_for_mixed {
                                 let recording_chunk = AudioChunk {
-                                    data: mixed_with_gain.clone(),
+                                    data: mixed_with_gain,
                                     sample_rate: self.sample_rate,
                                     timestamp: chunk.timestamp,
                                     chunk_id: self.chunk_id_counter,

@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::sync::Mutex as AsyncMutex;
 use anyhow::Result;
 use log::{info, warn, error};
@@ -52,7 +52,7 @@ pub struct RecordingSaver {
     meeting_folder: Option<PathBuf>,
     meeting_name: Option<String>,
     metadata: Option<MeetingMetadata>,
-    transcript_segments: Arc<Mutex<Vec<TranscriptSegment>>>,
+    transcript_segments: Arc<RwLock<Vec<TranscriptSegment>>>,
     chunk_receiver: Option<mpsc::UnboundedReceiver<AudioChunk>>,
     is_saving: Arc<Mutex<bool>>,
 }
@@ -64,7 +64,7 @@ impl RecordingSaver {
             meeting_folder: None,
             meeting_name: None,
             metadata: None,
-            transcript_segments: Arc::new(Mutex::new(Vec::new())),
+            transcript_segments: Arc::new(RwLock::new(Vec::new())),
             chunk_receiver: None,
             is_saving: Arc::new(Mutex::new(false)),
         }
@@ -94,7 +94,7 @@ impl RecordingSaver {
     /// Add or update a structured transcript segment (upserts based on sequence_id)
     /// Also saves incrementally to disk
     pub fn add_transcript_segment(&self, segment: TranscriptSegment) {
-        if let Ok(mut segments) = self.transcript_segments.lock() {
+        if let Ok(mut segments) = self.transcript_segments.write() {
             // Check if segment with same sequence_id exists (update it)
             if let Some(existing) = segments.iter_mut().find(|s| s.sequence_id == segment.sequence_id) {
                 *existing = segment.clone();
@@ -285,7 +285,7 @@ impl RecordingSaver {
     /// Write transcripts.json to disk (atomic write with temp file and validation)
     fn write_transcripts_json(&self, folder: &PathBuf) -> Result<()> {
         // Clone segments to avoid holding lock during I/O
-        let segments_clone = if let Ok(segments) = self.transcript_segments.lock() {
+        let segments_clone = if let Ok(segments) = self.transcript_segments.read() {
             segments.clone()
         } else {
             error!("Failed to lock transcript segments for writing");
@@ -421,7 +421,7 @@ impl RecordingSaver {
             // Use actual recording duration from RecordingState (more accurate than transcript segments)
             // Falls back to last transcript segment if duration not provided
             metadata.duration_seconds = recording_duration.or_else(|| {
-                if let Ok(segments) = self.transcript_segments.lock() {
+                if let Ok(segments) = self.transcript_segments.read() {
                     segments.last().map(|seg| seg.audio_end_time)
                 } else {
                     None
@@ -451,7 +451,7 @@ impl RecordingSaver {
         }
 
         // Clean up transcript segments
-        if let Ok(mut segments) = self.transcript_segments.lock() {
+        if let Ok(mut segments) = self.transcript_segments.write() {
             segments.clear();
         }
 
@@ -465,7 +465,7 @@ impl RecordingSaver {
 
     /// Get accumulated transcript segments (for reload sync)
     pub fn get_transcript_segments(&self) -> Vec<TranscriptSegment> {
-        if let Ok(segments) = self.transcript_segments.lock() {
+        if let Ok(segments) = self.transcript_segments.read() {
             segments.clone()
         } else {
             Vec::new()
