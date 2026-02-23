@@ -18,7 +18,7 @@ use crate::{
 };
 
 // Hardcoded server URL
-const APP_SERVER_URL: &str = "http://localhost:5167";
+pub const APP_SERVER_URL: &str = "http://localhost:5167";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse<T> {

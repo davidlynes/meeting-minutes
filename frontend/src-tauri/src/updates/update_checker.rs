@@ -1,30 +1,15 @@
-use mongodb::{
-    bson::doc,
-    options::ClientOptions,
-    Client, Collection,
-};
-use once_cell::sync::OnceCell;
+use crate::api::api::APP_SERVER_URL;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// MongoDB URI is injected at compile time via the MONGODB_URI environment variable.
-/// This keeps credentials out of source control.
-///
-/// Set it before building:
-///   set MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
-const MONGO_URI: &str = env!("MONGODB_URI", "MONGODB_URI env var must be set at build time");
-const DB_NAME: &str = "iqcapture";
-const COLLECTION_NAME: &str = "releases";
-
-static MONGO_CLIENT: OnceCell<Client> = OnceCell::new();
-
-/// Document shape matching the `releases` collection in MongoDB.
+/// Response shape from the backend /api/releases/latest endpoint.
 #[derive(Debug, Deserialize)]
-struct ReleaseDoc {
+struct ApiReleaseResponse {
+    available: bool,
     version: String,
     release_date: Option<String>,
-    release_notes: Option<String>,
     download_url: Option<String>,
+    release_notes: Option<String>,
     whats_new: Option<Vec<String>>,
 }
 
@@ -38,24 +23,6 @@ pub struct UpdateCheckResult {
     pub body: Option<String>,
     pub download_url: Option<String>,
     pub whats_new: Option<Vec<String>>,
-}
-
-async fn get_client() -> Result<&'static Client, String> {
-    if let Some(client) = MONGO_CLIENT.get() {
-        return Ok(client);
-    }
-
-    let mut opts = ClientOptions::parse(MONGO_URI)
-        .await
-        .map_err(|e| format!("Failed to parse MongoDB URI: {e}"))?;
-
-    opts.connect_timeout = Some(Duration::from_secs(5));
-    opts.server_selection_timeout = Some(Duration::from_secs(5));
-
-    let client =
-        Client::with_options(opts).map_err(|e| format!("Failed to create MongoDB client: {e}"))?;
-
-    Ok(MONGO_CLIENT.get_or_init(|| client))
 }
 
 fn parse_semver(v: &str) -> Option<(u64, u64, u64)> {
@@ -85,33 +52,35 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateCheckRes
         current_version
     );
 
-    let client = get_client().await?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
-    let collection: Collection<ReleaseDoc> =
-        client.database(DB_NAME).collection(COLLECTION_NAME);
+    let url = format!(
+        "{}/api/releases/latest?current_version={}",
+        APP_SERVER_URL, current_version
+    );
 
-    let release = collection
-        .find_one(doc! { "is_latest": true })
-        .await
-        .map_err(|e| format!("MongoDB query failed: {e}"))?;
+    let response = client.get(&url).send().await.map_err(|e| {
+        log::warn!("Update check failed (backend unreachable): {}", e);
+        "Could not reach the update server. Please ensure the backend is running.".to_string()
+    })?;
 
-    let release = match release {
-        Some(r) => r,
-        None => {
-            log::info!("No release document found with is_latest: true");
-            return Ok(UpdateCheckResult {
-                available: false,
-                current_version,
-                version: None,
-                date: None,
-                body: None,
-                download_url: None,
-                whats_new: None,
-            });
-        }
-    };
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        log::warn!("Update check returned HTTP {}: {}", status, body);
+        return Err(format!("Update server returned an error (HTTP {})", status));
+    }
 
-    let available = is_newer(&release.version, &current_version);
+    let release: ApiReleaseResponse = response.json().await.map_err(|e| {
+        log::warn!("Failed to parse update response: {}", e);
+        format!("Invalid response from update server: {e}")
+    })?;
+
+    // Client-side semver check as a fallback (the API already does this)
+    let available = release.available || is_newer(&release.version, &current_version);
 
     log::info!(
         "Latest release: {} (current: {}) — update available: {}",
