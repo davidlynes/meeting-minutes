@@ -247,6 +247,12 @@ pub async fn generate_meeting_summary(
                 Ok(summary) => {
                     chunk_summaries.push(summary);
                     info!("✓ Chunk {}/{} processed successfully", i + 1, num_chunks);
+                    if crate::device_registry::is_advanced_logging_enabled() {
+                        let (ci, nc) = (i + 1, num_chunks);
+                        tokio::spawn(async move {
+                            crate::analytics::advanced_logging::track_summary_chunk_processed(ci, nc, "", true).await;
+                        });
+                    }
                 }
                 Err(e) => {
                     // Check if error is due to cancellation
@@ -254,6 +260,14 @@ pub async fn generate_meeting_summary(
                         return Err(e);
                     }
                     error!("Failed processing chunk {}/{}: {}", i + 1, num_chunks, e);
+                    if crate::device_registry::is_advanced_logging_enabled() {
+                        let (ci, nc) = (i + 1, num_chunks);
+                        let err_msg = e.clone();
+                        tokio::spawn(async move {
+                            crate::analytics::advanced_logging::track_summary_chunk_processed(ci, nc, "", false).await;
+                            crate::analytics::advanced_logging::track_advanced_error("summary_chunk_error", &err_msg, &format!("chunk {}/{}", ci, nc)).await;
+                        });
+                    }
                 }
             }
         }
