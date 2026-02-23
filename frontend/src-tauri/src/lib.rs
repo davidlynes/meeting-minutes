@@ -52,6 +52,7 @@ pub mod state;
 pub mod summary;
 pub mod tray;
 pub mod utils;
+pub mod updates;
 pub mod whisper_engine;
 
 use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
@@ -738,6 +739,8 @@ pub fn run() {
             onboarding::save_onboarding_status_cmd,
             onboarding::reset_onboarding_status_cmd,
             onboarding::complete_onboarding,
+            // Update checker
+            updates::check_for_updates,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,

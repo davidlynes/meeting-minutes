@@ -1,14 +1,12 @@
 /**
  * Update Service
  *
- * Handles update checks via the backend release API (MongoDB-backed).
- * Replaces the Tauri updater plugin approach with a simple HTTP check
- * against our own backend, which serves release info from MongoDB.
+ * Checks for updates by invoking the Tauri `check_for_updates` command,
+ * which queries MongoDB Atlas directly from Rust — no Python backend needed.
  */
 
 import { getVersion } from '@tauri-apps/api/app';
-
-const BACKEND_URL = 'http://localhost:5167';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface UpdateInfo {
   available: boolean;
@@ -20,9 +18,19 @@ export interface UpdateInfo {
   whatsNew?: string[];
 }
 
+interface UpdateCheckResult {
+  available: boolean;
+  current_version: string;
+  version?: string;
+  date?: string;
+  body?: string;
+  download_url?: string;
+  whats_new?: string[];
+}
+
 /**
  * Update Service
- * Singleton service for managing app updates via backend API
+ * Singleton service for managing app updates via Tauri command
  */
 export class UpdateService {
   private updateCheckInProgress = false;
@@ -30,7 +38,7 @@ export class UpdateService {
   private readonly CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
-   * Check for available updates by querying our backend release API
+   * Check for available updates via Tauri command (queries MongoDB directly)
    * @param force Force check even if recently checked
    * @returns Promise with update information
    */
@@ -58,32 +66,18 @@ export class UpdateService {
     try {
       const currentVersion = await getVersion();
 
-      const response = await fetch(
-        `${BACKEND_URL}/api/releases/latest?current_version=${encodeURIComponent(currentVersion)}`,
-        { signal: AbortSignal.timeout(10000) }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Release API returned ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.available) {
-        return {
-          available: true,
-          currentVersion,
-          version: data.version,
-          date: data.release_date,
-          body: data.release_notes,
-          downloadUrl: data.download_url,
-          whatsNew: data.whats_new,
-        };
-      }
+      const data = await invoke<UpdateCheckResult>('check_for_updates', {
+        currentVersion,
+      });
 
       return {
-        available: false,
-        currentVersion,
+        available: data.available,
+        currentVersion: data.current_version,
+        version: data.version,
+        date: data.date,
+        body: data.body,
+        downloadUrl: data.download_url,
+        whatsNew: data.whats_new,
       };
     } catch (error) {
       console.error('Failed to check for updates:', error);
