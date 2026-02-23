@@ -1,4 +1,4 @@
-use posthog_rs::{Client, Event};
+use posthog_rs::{Client, ClientOptionsBuilder, Event};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ impl Default for AnalyticsConfig {
     fn default() -> Self {
         Self {
             api_key: String::new(),
-            host: Some("https://us.i.posthog.com".to_string()),
+            host: Some("https://eu.i.posthog.com/i/v0/e/".to_string()),
             enabled: false,
         }
     }
@@ -57,8 +57,17 @@ pub struct AnalyticsClient {
 impl AnalyticsClient {
     pub async fn new(config: AnalyticsConfig) -> Self {
         let client = if config.enabled && !config.api_key.is_empty() {
-            Some(Arc::new(posthog_rs::client(config.api_key.as_str()).await))
+            let mut builder = ClientOptionsBuilder::default();
+            builder.api_key(config.api_key.clone());
+            if let Some(ref host) = config.host {
+                log::info!("[PostHog] Configuring endpoint: {}", host);
+                builder.api_endpoint(host.clone());
+            }
+            let options = builder.build().expect("Failed to build PostHog client options");
+            log::info!("[PostHog] Client initialized successfully");
+            Some(Arc::new(posthog_rs::client(options).await))
         } else {
+            log::warn!("[PostHog] Client NOT initialized (enabled={}, key_empty={})", config.enabled, config.api_key.is_empty());
             None
         };
 
@@ -90,10 +99,12 @@ impl AnalyticsClient {
             }
         }
         
-        if let Err(e) = client.capture(event).await {
-            eprintln!("Failed to identify user: {}", e);
+        log::info!("[PostHog] Identifying user: {}", user_id);
+        match client.capture(event).await {
+            Ok(_) => log::info!("[PostHog] Successfully sent identify for user: {}", user_id),
+            Err(e) => log::error!("[PostHog] Failed to identify user: {}", e),
         }
-        
+
         Ok(())
     }
 
@@ -133,10 +144,12 @@ impl AnalyticsClient {
             }
         }
         
-        if let Err(e) = client.capture(event).await {
-            log::warn!("Failed to track event {}: {}", event_name, e);
+        log::info!("[PostHog] Sending event: {}", event_name);
+        match client.capture(event).await {
+            Ok(_) => log::info!("[PostHog] Successfully sent event: {}", event_name),
+            Err(e) => log::error!("[PostHog] Failed to send event '{}': {}", event_name, e),
         }
-        
+
         Ok(())
     }
 

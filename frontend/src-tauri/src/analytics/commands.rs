@@ -9,8 +9,8 @@ static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::s
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
     let config = AnalyticsConfig {
-        api_key: "phc_cohhHPgfQfnNWl33THRRpCftuRtWx2k5svtKrkpFb04".to_string(),
-        host: Some("https://us.i.posthog.com".to_string()),
+        api_key: "phc_pGkOvu6KylcbbQvyYslzVXdxNgl0nLSJOD0v2oemkuG".to_string(),
+        host: Some("https://eu.i.posthog.com/i/v0/e/".to_string()),
         enabled: true,
     };
     
@@ -51,6 +51,7 @@ pub async fn identify_user(user_id: String, properties: Option<HashMap<String, S
     };
     
     if let Some(client) = client {
+        super::panic_hook::set_user_id(user_id.clone());
         client.identify(user_id, properties).await
     } else {
         Err("Analytics client not initialized".to_string())
