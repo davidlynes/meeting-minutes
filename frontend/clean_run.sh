@@ -36,8 +36,12 @@ pnpm install
 echo "Building Next.js application..."
 pnpm run build
 
-# Set environment variables for the build
-echo "Setting up build environment..."
+# Ensure MongoDB URI is set for update checker (compile-time embed)
+if [ -z "$MONGODB_URI" ]; then
+    echo "ERROR: MONGODB_URI environment variable is not set."
+    echo "Set it before building: export MONGODB_URI='mongodb+srv://user:pass@cluster.mongodb.net/'"
+    exit 1
+fi
 
 echo "Building Tauri app..."
 pnpm run tauri dev
