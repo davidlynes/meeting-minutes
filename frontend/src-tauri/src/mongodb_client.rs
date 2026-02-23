@@ -54,3 +54,20 @@ where
     let client = get_client().await?;
     Ok(client.database(database_name()).collection::<T>(name))
 }
+
+/// Returns a typed collection routed to the primary for write operations.
+/// The default client uses SecondaryPreferred which cannot accept writes.
+pub async fn get_collection_for_write<T>(name: &str) -> Result<Collection<T>, String>
+where
+    T: Send + Sync,
+{
+    let client = get_client().await?;
+    let options = mongodb::options::CollectionOptions::builder()
+        .selection_criteria(SelectionCriteria::ReadPreference(
+            ReadPreference::PrimaryPreferred { options: Default::default() },
+        ))
+        .build();
+    Ok(client
+        .database(database_name())
+        .collection_with_options::<T>(name, options))
+}

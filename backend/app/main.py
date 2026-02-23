@@ -12,6 +12,7 @@ from threading import Lock
 from transcript_processor import TranscriptProcessor
 from template_routes import router as template_router
 from release_routes import router as release_router
+from device_routes import router as device_router
 import time
 
 # Load environment variables
@@ -57,6 +58,9 @@ app.include_router(template_router)
 
 # Register release API router (MongoDB-backed update checks)
 app.include_router(release_router)
+
+# Register device registry admin router (MongoDB-backed)
+app.include_router(device_router)
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()

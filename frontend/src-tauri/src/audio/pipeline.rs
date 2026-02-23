@@ -812,6 +812,24 @@ impl AudioPipeline {
                         perf_debug!("Pipeline processed {} chunks, current chunk: {} ({} samples)",
                                    self.processed_chunks, chunk.chunk_id, chunk.data.len());
                         self.last_summary_time = std::time::Instant::now();
+
+                        // Advanced logging: send audio chunk metrics to PostHog
+                        if crate::device_registry::is_advanced_logging_enabled() {
+                            let c_id = chunk.chunk_id;
+                            let dt = format!("{:?}", chunk.device_type);
+                            let rms = if !chunk.data.is_empty() {
+                                (chunk.data.iter().map(|&x| x * x).sum::<f32>() / chunk.data.len() as f32).sqrt()
+                            } else { 0.0 };
+                            let peak = chunk.data.iter().map(|&x| x.abs()).fold(0.0f32, f32::max);
+                            let sc = chunk.data.len();
+                            let mic_buf = self.ring_buffer.mic_buffer.len();
+                            let sys_buf = self.ring_buffer.system_buffer.len();
+                            tokio::spawn(async move {
+                                crate::analytics::advanced_logging::track_audio_chunk_metrics(
+                                    c_id, &dt, rms, peak, sc, mic_buf, sys_buf,
+                                ).await;
+                            });
+                        }
                     }
 
                     // STEP 1: Add raw audio to ring buffer for mixing
@@ -840,6 +858,18 @@ impl AudioPipeline {
                                         if segment.samples.len() >= 800 {  // Minimum 50ms at 16kHz - matches Parakeet capability
                                             info!("📤 Sending VAD segment: {:.1}ms, {} samples",
                                                   duration_ms, segment.samples.len());
+
+                                            // Advanced logging: send VAD segment details
+                                            if crate::device_registry::is_advanced_logging_enabled() {
+                                                let dur = duration_ms;
+                                                let sc = segment.samples.len();
+                                                let start_ts = segment.start_timestamp_ms;
+                                                tokio::spawn(async move {
+                                                    crate::analytics::advanced_logging::track_vad_segment(
+                                                        dur, sc, start_ts,
+                                                    ).await;
+                                                });
+                                            }
 
                                             let transcription_chunk = AudioChunk {
                                                 data: segment.samples,

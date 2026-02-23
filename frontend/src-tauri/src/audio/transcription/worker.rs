@@ -143,6 +143,14 @@ pub fn start_transcription_task<R: Runtime>(
                             let chunk_timestamp = chunk.timestamp;
                             let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
 
+                            // Timing + energy for advanced logging
+                            let transcription_start = std::time::Instant::now();
+                            let energy = if !chunk.data.is_empty() {
+                                chunk.data.iter().map(|&x| x * x).sum::<f32>() / chunk.data.len() as f32
+                            } else {
+                                0.0
+                            };
+
                             // Transcribe with provider-agnostic approach
                             match transcribe_chunk_with_provider(
                                 &engine_clone,
@@ -226,6 +234,23 @@ pub fn start_transcription_task<R: Runtime>(
                                                 worker_id, e
                                             );
                                         }
+
+                                        // Advanced logging: send transcription chunk details
+                                        if crate::device_registry::is_advanced_logging_enabled() {
+                                            let c_id = update.sequence_id;
+                                            let tl = update.text.len();
+                                            let conf = confidence_opt;
+                                            let proc_ms = transcription_start.elapsed().as_millis();
+                                            let en = energy;
+                                            let partial = is_partial;
+                                            let app_for_adv = app_clone.clone();
+                                            tokio::spawn(async move {
+                                                let _ = &app_for_adv; // keep app alive
+                                                crate::analytics::advanced_logging::track_transcription_chunk(
+                                                    c_id, tl, conf, proc_ms, en, partial,
+                                                ).await;
+                                            });
+                                        }
                                         // PERFORMANCE: Removed verbose logging of every emission
                                     } else if !transcript.trim().is_empty() && should_log_this_chunk
                                     {
@@ -252,6 +277,18 @@ pub fn start_transcription_task<R: Runtime>(
                                         _ => {
                                             warn!("Worker {}: Transcription failed: {}", worker_id, e);
                                             let _ = app_clone.emit("transcription-warning", e.to_string());
+
+                                            // Advanced logging: report transcription errors
+                                            if crate::device_registry::is_advanced_logging_enabled() {
+                                                let err_msg = e.to_string();
+                                                tokio::spawn(async move {
+                                                    crate::analytics::advanced_logging::track_advanced_error(
+                                                        "transcription_error",
+                                                        &err_msg,
+                                                        "worker transcription",
+                                                    ).await;
+                                                });
+                                            }
                                         }
                                     }
                                 }
