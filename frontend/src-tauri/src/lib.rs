@@ -740,7 +740,7 @@ pub fn run() {
             onboarding::reset_onboarding_status_cmd,
             onboarding::complete_onboarding,
             // Update checker
-            updates::check_for_updates,
+            updates::update_checker::check_for_updates,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,

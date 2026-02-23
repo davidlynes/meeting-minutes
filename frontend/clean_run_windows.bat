@@ -41,8 +41,8 @@ rd /s /q node_modules 2>nul
 del /f /q package-lock.json 2>nul
 
 echo Installing npm dependencies...
-pnpm install
+call pnpm install
 
 echo.
 echo Running the project...
-pnpm run tauri:dev
+call pnpm run tauri:dev
