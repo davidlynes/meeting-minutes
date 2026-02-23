@@ -45,13 +45,66 @@ fn is_newer(latest: &str, current: &str) -> bool {
     }
 }
 
-#[tauri::command]
-pub async fn check_for_updates(current_version: String) -> Result<UpdateCheckResult, String> {
+/// Extract a string from a BSON value, handling both plain strings and DateTime objects.
+fn bson_to_string(val: &mongodb::bson::Bson) -> Option<String> {
+    match val {
+        mongodb::bson::Bson::String(s) => Some(s.clone()),
+        mongodb::bson::Bson::DateTime(dt) => Some(dt.to_string()),
+        _ => None,
+    }
+}
+
+/// Check for updates via direct MongoDB query.
+async fn check_updates_via_mongodb(current_version: &str) -> Result<UpdateCheckResult, String> {
+    use mongodb::bson::{doc, Document};
+
+    let collection = crate::mongodb_client::get_collection::<Document>("releases").await?;
+
+    let filter = doc! { "is_latest": true };
+
+    let release = collection
+        .find_one(filter)
+        .sort(doc! { "release_date": -1 })
+        .await
+        .map_err(|e| format!("MongoDB query failed: {e}"))?
+        .ok_or_else(|| "No release found in MongoDB".to_string())?;
+
+    let version = release
+        .get_str("version")
+        .map(|s| s.to_string())
+        .map_err(|_| "Release missing version field".to_string())?;
+
+    let available = is_newer(&version, current_version);
+
+    let date = release.get("release_date").and_then(bson_to_string);
+    let download_url = release.get_str("download_url").ok().map(|s| s.to_string());
+    let release_notes = release.get_str("release_notes").ok().map(|s| s.to_string());
+    let whats_new = release.get_array("whats_new").ok().map(|arr| {
+        arr.iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect()
+    });
+
     log::info!(
-        "Checking for updates (current version: {})",
-        current_version
+        "MongoDB update check: latest={}, current={}, available={}",
+        version,
+        current_version,
+        available
     );
 
+    Ok(UpdateCheckResult {
+        available,
+        current_version: current_version.to_string(),
+        version: Some(version),
+        date,
+        body: release_notes,
+        download_url,
+        whats_new,
+    })
+}
+
+/// Check for updates via the backend HTTP API (fallback).
+async fn check_updates_via_api(current_version: &str) -> Result<UpdateCheckResult, String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()
@@ -79,11 +132,10 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateCheckRes
         format!("Invalid response from update server: {e}")
     })?;
 
-    // Client-side semver check as a fallback (the API already does this)
-    let available = release.available || is_newer(&release.version, &current_version);
+    let available = release.available || is_newer(&release.version, current_version);
 
     log::info!(
-        "Latest release: {} (current: {}) — update available: {}",
+        "API update check: latest={}, current={}, available={}",
         release.version,
         current_version,
         available
@@ -91,11 +143,32 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateCheckRes
 
     Ok(UpdateCheckResult {
         available,
-        current_version,
+        current_version: current_version.to_string(),
         version: Some(release.version),
         date: release.release_date,
         body: release.release_notes,
         download_url: release.download_url,
         whats_new: release.whats_new,
     })
+}
+
+#[tauri::command]
+pub async fn check_for_updates(current_version: String) -> Result<UpdateCheckResult, String> {
+    log::info!(
+        "Checking for updates (current version: {})",
+        current_version
+    );
+
+    // Try MongoDB first if configured
+    if crate::mongodb_client::is_configured() {
+        match check_updates_via_mongodb(&current_version).await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                log::warn!("MongoDB update check failed, falling back to API: {}", e);
+            }
+        }
+    }
+
+    // Fallback to HTTP API
+    check_updates_via_api(&current_version).await
 }

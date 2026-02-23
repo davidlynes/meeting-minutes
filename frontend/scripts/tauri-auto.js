@@ -47,6 +47,50 @@ if (platform === 'linux' && feature === 'cuda') {
   env.CMAKE_POSITION_INDEPENDENT_CODE = 'ON';
 }
 
+// Windows: Set CMAKE_GENERATOR=Ninja and initialize MSVC environment
+// This avoids the "Visual Studio 18 2026" error from cmake-rs auto-detection
+if (platform === 'win32' && !env.CMAKE_GENERATOR) {
+  env.CMAKE_GENERATOR = 'Ninja';
+  console.log('🔧 Windows: Set CMAKE_GENERATOR=Ninja');
+
+  // Auto-detect and initialize MSVC developer environment if not already active
+  if (!env.VCINSTALLDIR) {
+    try {
+      const vswherePath = path.join(
+        process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
+        'Microsoft Visual Studio', 'Installer', 'vswhere.exe'
+      );
+      const vsPath = execSync(
+        `"${vswherePath}" -latest -property installationPath`,
+        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+      ).trim();
+
+      if (vsPath) {
+        const vcvarsall = path.join(vsPath, 'VC', 'Auxiliary', 'Build', 'vcvarsall.bat');
+        // Run vcvarsall and capture the resulting environment
+        const rawEnv = execSync(
+          `"${vcvarsall}" x64 >nul 2>&1 && set`,
+          { encoding: 'utf8', shell: 'cmd.exe', stdio: ['pipe', 'pipe', 'pipe'] }
+        );
+        // Parse and merge MSVC environment variables
+        for (const line of rawEnv.split('\n')) {
+          const idx = line.indexOf('=');
+          if (idx > 0) {
+            const key = line.substring(0, idx);
+            const value = line.substring(idx + 1).trim();
+            env[key] = value;
+          }
+        }
+        env.CMAKE_GENERATOR = 'Ninja'; // re-set after merge
+        console.log('✅ Windows: MSVC developer environment initialized');
+      }
+    } catch (err) {
+      console.warn('⚠️  Could not auto-initialize MSVC environment:', err.message);
+      console.warn('   Run from a "Developer Command Prompt" or use clean_run_windows.bat');
+    }
+  }
+}
+
 // Build the tauri command
 let tauriCmd = `tauri ${command}`;
 if (feature && feature !== 'none') {

@@ -17,7 +17,7 @@ impl Default for AnalyticsConfig {
     fn default() -> Self {
         Self {
             api_key: String::new(),
-            host: Some("https://eu.i.posthog.com/i/v0/e/".to_string()),
+            host: option_env!("POSTHOG_HOST").map(|h| h.to_string()),
             enabled: false,
         }
     }

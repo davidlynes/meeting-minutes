@@ -153,8 +153,83 @@ struct BackendTemplate {
     updated_at: Option<String>,
 }
 
-/// Internal sync function (called from Tauri command and startup)
-pub async fn sync_templates_internal() -> SyncResult {
+/// Sync templates from MongoDB directly.
+/// Uses bson::Document to avoid schema mismatches with BSON types (e.g. DateTime).
+async fn sync_templates_from_mongodb() -> Result<SyncResult, String> {
+    use mongodb::bson::{doc, Document};
+    use futures_util::TryStreamExt;
+
+    let collection =
+        crate::mongodb_client::get_collection::<Document>("templates").await?;
+
+    let filter = doc! { "client_id": "default", "is_active": true };
+    let mut cursor = collection
+        .find(filter)
+        .await
+        .map_err(|e| format!("MongoDB template query failed: {e}"))?;
+
+    let mut synced_count = 0u32;
+    let mut failed_count = 0u32;
+
+    while let Some(doc) = cursor.try_next().await.map_err(|e| format!("MongoDB cursor error: {e}"))? {
+        let template_id = match doc.get_str("template_id") {
+            Ok(id) => id.to_string(),
+            Err(_) => {
+                warn!("Skipping MongoDB template without template_id");
+                failed_count += 1;
+                continue;
+            }
+        };
+
+        // Convert BSON sections array to serde_json::Value for local schema
+        let sections: Vec<serde_json::Value> = doc
+            .get_array("sections")
+            .unwrap_or(&vec![])
+            .iter()
+            .filter_map(|v| {
+                let json_str = serde_json::to_string(&v).ok()?;
+                serde_json::from_str(&json_str).ok()
+            })
+            .collect();
+
+        let local_json = serde_json::json!({
+            "name": doc.get_str("name").unwrap_or_default(),
+            "description": doc.get_str("description").unwrap_or_default(),
+            "sections": sections,
+            "global_instruction": doc.get_str("global_instruction").ok(),
+            "clinical_safety_rules": doc.get_array("clinical_safety_rules").ok().map(|arr| {
+                arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<_>>()
+            }),
+            "version": doc.get_i32("version").ok(),
+        });
+
+        let json_string = serde_json::to_string_pretty(&local_json).unwrap_or_default();
+
+        match templates::validate_and_parse_template(&json_string) {
+            Ok(_) => match templates::save_synced_template(&template_id, &json_string) {
+                Ok(_) => synced_count += 1,
+                Err(e) => {
+                    error!("Failed to save synced template '{}': {}", template_id, e);
+                    failed_count += 1;
+                }
+            },
+            Err(e) => {
+                warn!("Skipping invalid template '{}' from MongoDB: {}", template_id, e);
+                failed_count += 1;
+            }
+        }
+    }
+
+    info!("MongoDB template sync: {} synced, {} failed", synced_count, failed_count);
+    Ok(SyncResult {
+        synced_count,
+        failed_count,
+        is_online: true,
+    })
+}
+
+/// Sync templates from backend HTTP API (fallback).
+async fn sync_templates_from_api() -> SyncResult {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build();
@@ -197,7 +272,6 @@ pub async fn sync_templates_internal() -> SyncResult {
     let mut failed_count = 0u32;
 
     for tmpl in &body.templates {
-        // Build template JSON that matches our local schema
         let local_json = serde_json::json!({
             "name": tmpl.name,
             "description": tmpl.description,
@@ -210,7 +284,6 @@ pub async fn sync_templates_internal() -> SyncResult {
 
         let json_string = serde_json::to_string_pretty(&local_json).unwrap_or_default();
 
-        // Validate before saving
         match templates::validate_and_parse_template(&json_string) {
             Ok(_) => {
                 match templates::save_synced_template(&tmpl.template_id, &json_string) {
@@ -228,8 +301,23 @@ pub async fn sync_templates_internal() -> SyncResult {
         }
     }
 
-    info!("Template sync completed: {} synced, {} failed", synced_count, failed_count);
+    info!("API template sync: {} synced, {} failed", synced_count, failed_count);
     SyncResult { synced_count, failed_count, is_online: true }
+}
+
+/// Internal sync function (called from Tauri command and startup).
+/// Tries MongoDB first, falls back to HTTP API.
+pub async fn sync_templates_internal() -> SyncResult {
+    if crate::mongodb_client::is_configured() {
+        match sync_templates_from_mongodb().await {
+            Ok(result) => return result,
+            Err(e) => {
+                warn!("MongoDB template sync failed, falling back to API: {}", e);
+            }
+        }
+    }
+
+    sync_templates_from_api().await
 }
 
 /// Syncs templates from the backend (MongoDB) to the local synced cache
