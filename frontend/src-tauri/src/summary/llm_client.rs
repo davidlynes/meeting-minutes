@@ -312,6 +312,12 @@ pub async fn generate_summary(
             .ok_or("No content in LLM response")?
             .text
             .trim();
+        if crate::device_registry::is_advanced_logging_enabled() {
+            let (m, chars) = (model_name.to_string(), content.len());
+            tokio::spawn(async move {
+                crate::analytics::advanced_logging::track_llm_generation("Claude", &m, chars).await;
+            });
+        }
         Ok(content.to_string())
     } else {
         let chat_response = response
@@ -328,6 +334,12 @@ pub async fn generate_summary(
             .message
             .content
             .trim();
+        if crate::device_registry::is_advanced_logging_enabled() {
+            let (p, m, chars) = (provider_name(provider).to_string(), model_name.to_string(), content.len());
+            tokio::spawn(async move {
+                crate::analytics::advanced_logging::track_llm_generation(&p, &m, chars).await;
+            });
+        }
         Ok(content.to_string())
     }
 }

@@ -229,6 +229,12 @@ pub async fn generate_with_builtin(
                 Err(anyhow!("Generation failed: {}", err_msg))
             } else {
                 log::info!("Generation completed: {} chars", text.len());
+                if crate::device_registry::is_advanced_logging_enabled() {
+                    let chars = text.len();
+                    tokio::spawn(async move {
+                        crate::analytics::advanced_logging::track_llm_generation("BuiltInAI", "sidecar", chars).await;
+                    });
+                }
                 Ok(text)
             }
         }

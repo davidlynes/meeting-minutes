@@ -180,6 +180,13 @@ impl SummaryService {
                         "✓ Using dynamic context for {}: {} tokens (chunk size: {})",
                         model_name, metadata.context_size, optimal
                     );
+                    if crate::device_registry::is_advanced_logging_enabled() {
+                        let (p, m) = (model_provider.clone(), model_name.clone());
+                        let (cs, ch) = (metadata.context_size, optimal);
+                        tokio::spawn(async move {
+                            crate::analytics::advanced_logging::track_context_sizing(&p, &m, cs, ch).await;
+                        });
+                    }
                     optimal
                 }
                 Err(e) => {
@@ -204,6 +211,13 @@ impl SummaryService {
                         "✓ Using BuiltInAI context size: {} tokens (chunk size: {})",
                         model_def.context_size, optimal
                     );
+                    if crate::device_registry::is_advanced_logging_enabled() {
+                        let (p, m) = (model_provider.clone(), model_name.clone());
+                        let (cs, ch) = (model_def.context_size as usize, optimal);
+                        tokio::spawn(async move {
+                            crate::analytics::advanced_logging::track_context_sizing(&p, &m, cs, ch).await;
+                        });
+                    }
                     optimal
                 }
                 Err(e) => {
@@ -215,6 +229,16 @@ impl SummaryService {
             // Cloud providers (OpenAI, Claude, Groq, CustomOpenAI) handle large contexts automatically
             100000  // Effectively unlimited for single-pass processing
         };
+
+        // Track summary started for advanced logging
+        if crate::device_registry::is_advanced_logging_enabled() {
+            let transcript_tokens = crate::summary::processor::rough_token_count(&text);
+            let strategy = if token_threshold >= 100000 { "single-pass" } else { "multi-level-possible" };
+            let (p, m, tid, mid, tt) = (model_provider.clone(), model_name.clone(), template_id.clone(), meeting_id.clone(), token_threshold);
+            tokio::spawn(async move {
+                crate::analytics::advanced_logging::track_summary_started(&p, &m, transcript_tokens, strategy, tt, &tid, &mid).await;
+            });
+        }
 
         // Get app data directory for BuiltInAI provider
         let app_data_dir = _app.path().app_data_dir().ok();
@@ -262,6 +286,17 @@ impl SummaryService {
                     num_chunks, meeting_id, duration
                 );
                 info!("final markdown is {}", &final_markdown);
+
+                if crate::device_registry::is_advanced_logging_enabled() {
+                    let (mid, p, m) = (meeting_id.clone(), model_provider.clone(), model_name.clone());
+                    let md_len = final_markdown.len();
+                    let strategy = if num_chunks == 1 { "single-pass" } else { "multi-level" };
+                    let nc = num_chunks;
+                    let dur = duration;
+                    tokio::spawn(async move {
+                        crate::analytics::advanced_logging::track_summary_completed(&mid, dur, nc, strategy, &p, &m, md_len).await;
+                    });
+                }
 
                 // Extract and update meeting name if present
                 if let Some(name) = extract_meeting_name_from_markdown(&final_markdown) {
@@ -329,6 +364,13 @@ impl SummaryService {
                         error!("Failed to update DB status to cancelled for {}: {}", meeting_id, db_err);
                     }
                 } else {
+                    if crate::device_registry::is_advanced_logging_enabled() {
+                        let (mid, p, m, err) = (meeting_id.clone(), model_provider.clone(), model_name.clone(), e.clone());
+                        let dur = duration;
+                        tokio::spawn(async move {
+                            crate::analytics::advanced_logging::track_summary_failed(&mid, dur, &err, &p, &m).await;
+                        });
+                    }
                     Self::update_process_failed(&pool, &meeting_id, &e).await;
                 }
             }

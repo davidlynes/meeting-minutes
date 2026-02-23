@@ -141,3 +141,129 @@ pub async fn track_advanced_error(
     props.insert("context".into(), context.to_string());
     send_event("advanced_error", props).await;
 }
+
+// ---------------------------------------------------------------------------
+// Summary lifecycle  (service.rs)
+// ---------------------------------------------------------------------------
+
+pub async fn track_summary_started(
+    provider: &str,
+    model_name: &str,
+    transcript_tokens: usize,
+    strategy: &str,
+    token_threshold: usize,
+    template_id: &str,
+    meeting_id: &str,
+) {
+    if !is_advanced_logging_enabled() {
+        return;
+    }
+    let mut props = HashMap::new();
+    props.insert("provider".into(), provider.to_string());
+    props.insert("model_name".into(), model_name.to_string());
+    props.insert("transcript_tokens".into(), transcript_tokens.to_string());
+    props.insert("strategy".into(), strategy.to_string());
+    props.insert("token_threshold".into(), token_threshold.to_string());
+    props.insert("template_id".into(), template_id.to_string());
+    props.insert("meeting_id".into(), meeting_id.to_string());
+    send_event("advanced_summary_started", props).await;
+}
+
+pub async fn track_summary_chunk_processed(
+    chunk_index: usize,
+    total_chunks: usize,
+    meeting_id: &str,
+    success: bool,
+) {
+    if !is_advanced_logging_enabled() {
+        return;
+    }
+    let mut props = HashMap::new();
+    props.insert("chunk_index".into(), chunk_index.to_string());
+    props.insert("total_chunks".into(), total_chunks.to_string());
+    props.insert("meeting_id".into(), meeting_id.to_string());
+    props.insert("success".into(), success.to_string());
+    send_event("advanced_summary_chunk_processed", props).await;
+}
+
+pub async fn track_summary_completed(
+    meeting_id: &str,
+    duration_secs: f64,
+    num_chunks: i64,
+    strategy: &str,
+    provider: &str,
+    model_name: &str,
+    markdown_length: usize,
+) {
+    if !is_advanced_logging_enabled() {
+        return;
+    }
+    let mut props = HashMap::new();
+    props.insert("meeting_id".into(), meeting_id.to_string());
+    props.insert("duration_secs".into(), format!("{:.2}", duration_secs));
+    props.insert("num_chunks".into(), num_chunks.to_string());
+    props.insert("strategy".into(), strategy.to_string());
+    props.insert("provider".into(), provider.to_string());
+    props.insert("model_name".into(), model_name.to_string());
+    props.insert("markdown_length".into(), markdown_length.to_string());
+    send_event("advanced_summary_completed", props).await;
+}
+
+pub async fn track_summary_failed(
+    meeting_id: &str,
+    duration_secs: f64,
+    error_message: &str,
+    provider: &str,
+    model_name: &str,
+) {
+    if !is_advanced_logging_enabled() {
+        return;
+    }
+    let mut props = HashMap::new();
+    props.insert("meeting_id".into(), meeting_id.to_string());
+    props.insert("duration_secs".into(), format!("{:.2}", duration_secs));
+    props.insert("error_message".into(), error_message.to_string());
+    props.insert("provider".into(), provider.to_string());
+    props.insert("model_name".into(), model_name.to_string());
+    send_event("advanced_summary_failed", props).await;
+}
+
+// ---------------------------------------------------------------------------
+// LLM generation  (llm_client.rs, summary_engine/client.rs)
+// ---------------------------------------------------------------------------
+
+pub async fn track_llm_generation(
+    provider: &str,
+    model_name: &str,
+    response_chars: usize,
+) {
+    if !is_advanced_logging_enabled() {
+        return;
+    }
+    let mut props = HashMap::new();
+    props.insert("provider".into(), provider.to_string());
+    props.insert("model_name".into(), model_name.to_string());
+    props.insert("response_chars".into(), response_chars.to_string());
+    send_event("advanced_llm_generation", props).await;
+}
+
+// ---------------------------------------------------------------------------
+// Context sizing  (service.rs, dynamic context detection)
+// ---------------------------------------------------------------------------
+
+pub async fn track_context_sizing(
+    provider: &str,
+    model_name: &str,
+    context_size: usize,
+    chunk_size: usize,
+) {
+    if !is_advanced_logging_enabled() {
+        return;
+    }
+    let mut props = HashMap::new();
+    props.insert("provider".into(), provider.to_string());
+    props.insert("model_name".into(), model_name.to_string());
+    props.insert("context_size".into(), context_size.to_string());
+    props.insert("chunk_size".into(), chunk_size.to_string());
+    send_event("advanced_context_sizing", props).await;
+}
