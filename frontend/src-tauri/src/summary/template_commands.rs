@@ -1,5 +1,6 @@
 use crate::summary::templates;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tauri::Runtime;
 use tracing::{error, info, warn};
 
@@ -308,16 +309,29 @@ async fn sync_templates_from_api() -> SyncResult {
 /// Internal sync function (called from Tauri command and startup).
 /// Tries MongoDB first, falls back to HTTP API.
 pub async fn sync_templates_internal() -> SyncResult {
-    if crate::mongodb_client::is_configured() {
+    let (result, source) = if crate::mongodb_client::is_configured() {
         match sync_templates_from_mongodb().await {
-            Ok(result) => return result,
+            Ok(r) => (r, "mongodb"),
             Err(e) => {
                 warn!("MongoDB template sync failed, falling back to API: {}", e);
+                (sync_templates_from_api().await, "api")
             }
         }
+    } else {
+        (sync_templates_from_api().await, "api")
+    };
+
+    // Fire PostHog analytics event
+    if let Some(client) = crate::analytics::commands::get_analytics_client() {
+        let mut props = HashMap::new();
+        props.insert("source".to_string(), source.to_string());
+        props.insert("synced_count".to_string(), result.synced_count.to_string());
+        props.insert("failed_count".to_string(), result.failed_count.to_string());
+        props.insert("is_online".to_string(), result.is_online.to_string());
+        let _ = client.track_event("template_sync_completed", Some(props)).await;
     }
 
-    sync_templates_from_api().await
+    result
 }
 
 /// Syncs templates from the backend (MongoDB) to the local synced cache

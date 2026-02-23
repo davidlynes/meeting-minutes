@@ -6,6 +6,12 @@ use crate::analytics::{AnalyticsClient, AnalyticsConfig};
 // Global analytics client
 static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::sync::Mutex::new(None);
 
+/// Returns a clone of the analytics client if initialized.
+/// Used by non-command code (update_checker, template_commands) to fire events.
+pub fn get_analytics_client() -> Option<Arc<AnalyticsClient>> {
+    ANALYTICS_CLIENT.lock().ok()?.as_ref().cloned()
+}
+
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
     let api_key = match option_env!("POSTHOG_API_KEY") {
