@@ -2,6 +2,9 @@
 mod ffmpeg;
 
 fn main() {
+    // Load PostHog env vars from frontend/.env if not already set
+    load_env_file();
+
     // GPU Acceleration Detection and Build Guidance
     detect_and_report_gpu_capabilities();
 
@@ -19,6 +22,44 @@ fn main() {
     ffmpeg::ensure_ffmpeg_binary();
 
     tauri_build::build()
+}
+
+/// Loads env vars from frontend/.env into the build environment via cargo:rustc-env.
+/// These become available at compile time through option_env!() in Rust source files.
+fn load_env_file() {
+    let env_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env");
+
+    // Canonicalize the path so cargo can properly track file changes on Windows
+    // (paths with ".." don't trigger rerun-if-changed reliably)
+    let env_path = env_path.canonicalize().unwrap_or(env_path);
+    println!("cargo:rerun-if-changed={}", env_path.display());
+
+    let contents = match std::fs::read_to_string(&env_path) {
+        Ok(c) => c,
+        Err(e) => {
+            println!("cargo:warning=⚠️  Could not read .env file: {}", e);
+            return;
+        }
+    };
+
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+            if matches!(key, "POSTHOG_API_KEY" | "POSTHOG_HOST" | "MONGODB_URI" | "MONGODB_DATABASE") && !value.is_empty() {
+                println!("cargo:rustc-env={}={}", key, value);
+                if key == "MONGODB_URI" {
+                    println!("cargo:warning=✅ MONGODB_URI loaded from .env (len={})", value.len());
+                } else {
+                    println!("cargo:warning=✅ {} loaded from .env", key);
+                }
+            }
+        }
+    }
 }
 
 /// Detects GPU acceleration capabilities and provides build guidance

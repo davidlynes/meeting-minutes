@@ -11,16 +11,9 @@ export function useTemplates() {
   }>>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('standard_meeting');
 
-  // Sync templates from backend then fetch available templates on mount
+  // Fetch available templates on mount (sync already runs once at app startup)
   useEffect(() => {
     const fetchTemplates = async () => {
-      // Fire-and-forget sync from backend (MongoDB) — failure uses cached/bundled templates
-      try {
-        await invokeTauri('api_sync_templates');
-      } catch (error) {
-        console.debug('Template sync skipped (backend unavailable):', error);
-      }
-
       try {
         const templates = await invokeTauri('api_list_templates') as Array<{
           id: string;

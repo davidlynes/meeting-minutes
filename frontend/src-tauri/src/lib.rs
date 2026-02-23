@@ -52,6 +52,7 @@ pub mod state;
 pub mod summary;
 pub mod tray;
 pub mod utils;
+pub mod mongodb_client;
 pub mod updates;
 pub mod whisper_engine;
 
@@ -521,7 +522,9 @@ pub fn run() {
             }
 
             // Non-blocking startup sync of templates from backend (MongoDB)
+            // Delay to allow Windows Firewall prompts to be accepted before connecting
             tauri::async_runtime::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 log::info!("Starting background template sync...");
                 let result = summary::sync_templates_internal().await;
                 if result.is_online {
@@ -531,7 +534,19 @@ pub fn run() {
                         result.failed_count
                     );
                 } else {
-                    log::info!("Template sync: backend not available, using cached/bundled templates");
+                    // Retry once after a delay in case firewall was just approved
+                    log::info!("Template sync: first attempt failed, retrying in 10s...");
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    let retry = summary::sync_templates_internal().await;
+                    if retry.is_online {
+                        log::info!(
+                            "Template sync retry succeeded: {} synced, {} failed",
+                            retry.synced_count,
+                            retry.failed_count
+                        );
+                    } else {
+                        log::info!("Template sync: not available, using cached/bundled templates");
+                    }
                 }
             });
 

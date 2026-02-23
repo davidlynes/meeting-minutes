@@ -8,9 +8,16 @@ static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::s
 
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
+    let api_key = match option_env!("POSTHOG_API_KEY") {
+        Some(key) => key.to_string(),
+        None => {
+            log::warn!("[PostHog] POSTHOG_API_KEY not set at build time, analytics disabled");
+            return Ok(());
+        }
+    };
     let config = AnalyticsConfig {
-        api_key: "phc_pGkOvu6KylcbbQvyYslzVXdxNgl0nLSJOD0v2oemkuG".to_string(),
-        host: Some("https://eu.i.posthog.com/i/v0/e/".to_string()),
+        api_key,
+        host: option_env!("POSTHOG_HOST").map(|h| h.to_string()),
         enabled: true,
     };
     
