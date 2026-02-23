@@ -20,7 +20,7 @@
     },
     {
       "title": "Discussion Highlights",
-      "instruction": "Summarize the main topics of discussion, key arguments, and important insights.",
+      "instruction": "Summarise the main topics of discussion, key arguments, and important insights.",
       "format": "paragraph"
     }
   ]

@@ -1,7 +1,7 @@
-# GPU-accelerated development script for Meetily (Windows PowerShell)
+# GPU-accelerated development script for IQ:capture (Windows PowerShell)
 # Automatically detects and runs in development mode with optimal GPU features
 
-Write-Host "GPU-Accelerated Development Mode for Meetily" -ForegroundColor Blue
+Write-Host "GPU-Accelerated Development Mode for IQ:capture" -ForegroundColor Blue
 Write-Host ""
 
 # Function to check if command exists
@@ -26,7 +26,7 @@ if (Test-Path "package.json") {
 }
 
 Write-Host ""
-Write-Host "Starting Meetily in development mode..." -ForegroundColor Blue
+Write-Host "Starting IQ:capture in development mode..." -ForegroundColor Blue
 Write-Host ""
 
 # Run tauri dev using npm scripts (which handle GPU detection automatically)
@@ -40,13 +40,13 @@ try {
         exit 1
     }
 
-    Write-Host "Starting complete Tauri application with automatic GPU detection..." -ForegroundColor Cyan
+    Write-Host "Starting complete Tauri application with Vulkan acceleration..." -ForegroundColor Cyan
     Write-Host ""
 
     if ($usePnpm) {
-        pnpm run tauri:dev
+        pnpm run tauri:dev:vulkan
     } else {
-        npm run tauri:dev
+        npm run tauri:dev:vulkan
     }
 
     if ($LASTEXITCODE -eq 0) {

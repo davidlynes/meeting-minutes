@@ -1,5 +1,5 @@
 @echo off
-REM Meetily Build Script for Windows
+REM IQ:capture Build Script for Windows
 REM This script sets up environment variables and builds the Tauri application
 
 REM Exit on error
@@ -26,7 +26,7 @@ if "%~1" == "debug" (
     set "DEBUG=false"
 )
 
-echo 🚀 Building Meetily application...
+echo 🚀 Building IQ:capture application...
 echo 🔨 Building Tauri application...
 
 REM Kill any existing processes on port 3118
@@ -108,8 +108,8 @@ if "%~1" == "debug" (
     echo Starting development mode...
     echo Running initial compilation check...
    
-    echo ✅ Initial compilation check passed. Starting development server...
-    call pnpm run tauri dev
+    echo ✅ Initial compilation check passed. Starting development server with Vulkan...
+    call pnpm run tauri:dev:vulkan
     if errorlevel 1 (
         echo Error: Failed to start Tauri development server
         exit /b 1
@@ -133,8 +133,8 @@ if "%~1" == "debug" (
     echo Building for production...
     echo Running pre-build compilation check...
    
-    echo ✅ Pre-build check passed. Building for production...
-    call pnpm run tauri build
+    echo ✅ Pre-build check passed. Building for production with Vulkan...
+    call pnpm run tauri:build:vulkan
     if errorlevel 1 (
         echo ❌ Error: Failed to build Tauri application for production
         exit /b 1
@@ -150,7 +150,7 @@ if not "%~1" == "debug" (
 :_print_help
 echo.
 echo ========================================
-echo    Meetily Build Script - Help
+echo    IQ:capture Build Script - Help
 echo ========================================
 echo.
 echo USAGE:
@@ -166,7 +166,7 @@ echo   /?        Show this help message
 echo   ^(none^)  Build the application for production
 echo.
 echo DESCRIPTION:
-echo   This script builds the Meetily Tauri application for Windows.
+echo   This script builds the IQ:capture Tauri application for Windows.
 echo   It automatically sets up the Visual Studio build environment,
 echo   configures necessary paths, and handles port cleanup.
 echo.

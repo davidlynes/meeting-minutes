@@ -1,7 +1,7 @@
 [package]
-name = "meetily"
-version = "0.1.1"
-description = "A Tauri App for meeting minutes"
+name = "iqcapture"
+version = "0.2.1"
+description = "IQ:capture - A Tauri App for meeting minutes"
 authors = ["Sujith S"]
 license = "MIT"
 repository = "https://github.com/Zackriya-Solutions/meeting-minutes"
@@ -56,6 +56,9 @@ openmp = ["whisper-rs/openmp"]     # OpenMP parallel processing
 tauri-build = { version = "2.3.0", features = [] }
 reqwest = { version = "0.11", features = ["blocking", "multipart", "json", "stream"] }
 which = "6.0.1"
+zip = "2.2"           # ZIP extraction (Windows, macOS)
+tar = "0.4"           # TAR extraction (Linux)
+xz2 = "0.1"           # XZ decompression (Linux)
 
 
 [dependencies]
@@ -93,9 +96,9 @@ ebur128 = "0.1"
 # Noise suppression - RNNoise-based neural network noise reduction
 nnnoiseless = "0.5"
 
-# Whisper-rs for speech recognition - BASE dependency (no GPU features)
-# Platform-specific GPU features are added via target-specific dependencies below
-whisper-rs = { version = "0.13.2", features = ["raw-api"] }
+# Speech recognition and async utilities
+# NOTE: whisper-rs is declared in platform-specific sections below (macOS/Windows/Linux)
+# to ensure correct GPU features are enabled per platform
 futures-util = "0.3"
 silero_rs = { git = "https://github.com/emotechlab/silero-rs", rev = "26a6460", package = "silero" }
 
@@ -105,6 +108,7 @@ thiserror = "2.0.16"                # Error handling for Parakeet
 
 # Async
 tokio = { version = "1.32.0", features = ["full", "tracing"] }
+tokio-util = "0.7"  # Utilities for tokio including CancellationToken
 async-trait = "0.1"  # Trait abstraction for async methods
 
 reqwest = { version = "0.11", features = ["blocking", "multipart", "json", "stream"] }
@@ -145,6 +149,7 @@ tauri-plugin-fs = "2.4.0"
 tauri-plugin-dialog = "2.3.0"
 tauri-plugin-store = "2.4.0"
 tauri-plugin-notification = "2.3.1"
+tauri-plugin-process = "2.3.0"
 
 # macOS-specific dependencies with Metal GPU acceleration
 [target.'cfg(target_os = "macos")'.dependencies]

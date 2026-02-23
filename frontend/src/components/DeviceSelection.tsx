@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 import { RefreshCw, Mic, Speaker } from 'lucide-react';
 import { AudioLevelMeter, CompactAudioLevelMeter } from './AudioLevelMeter';
 import { AudioBackendSelector } from './AudioBackendSelector';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import Analytics from '@/lib/analytics';
 
 export interface AudioDevice {
@@ -262,23 +264,30 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Mic className="h-4 w-4 text-gray-600" />
-            <label className="text-sm font-medium text-gray-700">
+            <Label htmlFor="mic-selection" className="text-sm font-medium text-gray-700">
               Microphone
-            </label>
+            </Label>
           </div>
-          <select
+          <Select
             value={selectedDevices.micDevice || 'default'}
-            onChange={(e) => handleMicDeviceChange(e.target.value)}
+            onValueChange={handleMicDeviceChange}
             disabled={disabled}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
           >
-            <option value="default">Default Microphone</option>
-            {inputDevices.map((device) => (
-              <option key={device.name} value={device.name}>
-                {device.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="mic-selection" className="w-full">
+              <SelectValue placeholder="Select Microphone" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default Microphone</SelectItem>
+              {inputDevices.map((device) => (
+                <SelectItem
+                  key={device.name}
+                  value={`${device.name} (${device.device_type.toLowerCase()})`}
+                >
+                  {device.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {inputDevices.length === 0 && (
             <p className="text-xs text-gray-500">No microphone devices found</p>
           )}
@@ -323,28 +332,37 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Speaker className="h-4 w-4 text-gray-600" />
-            <label className="text-sm font-medium text-gray-700">
+            <Label htmlFor="system-selection" className="text-sm font-medium text-gray-700">
               System Audio
-            </label>
+            </Label>
           </div>
-          <select
+
+          <Select
             value={selectedDevices.systemDevice || 'default'}
-            onChange={(e) => handleSystemDeviceChange(e.target.value)}
+            onValueChange={handleSystemDeviceChange}
             disabled={disabled}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
           >
-            <option value="default">Default System Audio</option>
-            {outputDevices.map((device) => (
-              <option key={device.name} value={device.name}>
-                {device.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="system-selection" className="w-full">
+              <SelectValue placeholder="Select System Audio" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default System Audio</SelectItem>
+              {outputDevices.map((device) => (
+                <SelectItem
+                  key={device.name}
+                  value={`${device.name} (${device.device_type.toLowerCase()})`}
+                >
+                  {device.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {outputDevices.length === 0 && (
             <p className="text-xs text-gray-500">No system audio devices found</p>
           )}
 
-          {/* Backend Selection - only show when not recording */}
+          {/* Backend Selection - available on all platforms */}
           {!disabled && (
             <div className="pt-3 border-t border-gray-100">
               <AudioBackendSelector disabled={disabled} />

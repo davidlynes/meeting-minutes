@@ -66,7 +66,7 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
                 <li>• Number of transcript segments</li>
                 <li>• Number of audio chunks processed</li>
               </ul>
-              <p className="text-xs text-gray-500 mt-2 italic">Helps us optimize performance and understand usage patterns</p>
+              <p className="text-xs text-gray-500 mt-2 italic">Helps us optimise performance and understand usage patterns</p>
             </div>
 
             {/* Device Types */}
@@ -99,7 +99,7 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
                 <li>• App version (automatically included in all events)</li>
                 <li>• Architecture (e.g., "x86_64", "aarch64")</li>
               </ul>
-              <p className="text-xs text-gray-500 mt-2 italic">Helps us prioritize platform support</p>
+              <p className="text-xs text-gray-500 mt-2 italic">Helps us prioritise platform support</p>
             </div>
           </div>
 
@@ -120,9 +120,9 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <h4 className="font-semibold text-gray-900 mb-2">Example Event:</h4>
             <pre className="text-xs text-gray-700 overflow-x-auto">
-{`{
+              {`{
   "event": "meeting_ended",
-  "app_version": "0.1.1",
+  "app_version": "0.2.1",
   "transcription_provider": "parakeet",
   "transcription_model": "parakeet-tdt-0.6b-v3-int8",
   "summary_provider": "ollama",

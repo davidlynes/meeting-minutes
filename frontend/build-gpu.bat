@@ -1,5 +1,5 @@
 @echo off
-REM Meetily GPU-Accelerated Build Script for Windows
+REM IQ:capture GPU-Accelerated Build Script for Windows
 REM Automatically detects and builds with optimal GPU features
 REM Based on the existing build.bat with GPU detection enhancements
 
@@ -23,7 +23,7 @@ if "%~1" == "help" (
 
 echo.
 echo ========================================
-echo   Meetily GPU-Accelerated Build
+echo   IQ:capture GPU-Accelerated Build
 echo ========================================
 echo.
 
@@ -79,7 +79,7 @@ set "RUST_ENV_LIB=%LIB%"
 set "RUST_ENV_INCLUDE=%INCLUDE%"
 
 echo.
-echo 📦 Building Meetily...
+echo 📦 Building IQ:capture...
 echo.
 
 REM Find package.json location
@@ -116,14 +116,84 @@ if %USE_PNPM% equ 0 (
     )
 )
 
-REM Build using npm scripts (which handle GPU detection automatically)
-echo    Building complete Tauri application with automatic GPU detection...
+REM Detect GPU feature
+echo 🔍 Detecting GPU features...
+for /f "delims=" %%i in ('node scripts/auto-detect-gpu.js') do set TAURI_GPU_FEATURE=%%i
+
+if defined TAURI_GPU_FEATURE (
+    echo ✅ Detected GPU feature: !TAURI_GPU_FEATURE!
+) else (
+    echo ⚠️ No specific GPU feature detected or forced
+)
+
+REM Build llama-helper
+echo.
+echo 🦙 Building llama-helper sidecar (release)...
+
+set "HELPER_DIR=..\llama-helper"
+if not exist "%HELPER_DIR%" (
+    echo ❌ Could not find llama-helper directory at %HELPER_DIR%
+    exit /b 1
+)
+
+set "HELPER_FEATURES="
+if defined TAURI_GPU_FEATURE (
+    set "HELPER_FEATURES=--features !TAURI_GPU_FEATURE!"
+)
+
+echo    Building in %HELPER_DIR% with features: %HELPER_FEATURES%
+pushd "%HELPER_DIR%"
+call cargo build --release %HELPER_FEATURES%
+if errorlevel 1 (
+    echo ❌ Failed to build llama-helper
+    popd
+    exit /b 1
+)
+popd
+echo ✅ llama-helper built successfully
+
+REM Detect target triple
+echo.
+echo 🎯 Detecting target triple...
+for /f "tokens=2" %%i in ('rustc -vV ^| findstr "host:"') do set TARGET_TRIPLE=%%i
+echo    Target: !TARGET_TRIPLE!
+
+REM Copy binary
+set "BINARIES_DIR=src-tauri\binaries"
+if not exist "%BINARIES_DIR%" mkdir "%BINARIES_DIR%"
+
+REM Clean old binaries
+del /q "%BINARIES_DIR%\llama-helper*" 2>nul
+
+set "BASE_BINARY=llama-helper.exe"
+set "SIDECAR_BINARY=llama-helper-!TARGET_TRIPLE!.exe"
+set "SRC_PATH=..\target\release\%BASE_BINARY%"
+set "DEST_PATH=%BINARIES_DIR%\%SIDECAR_BINARY%"
+
+if not exist "%SRC_PATH%" (
+    REM Fallback check
+    set "SRC_PATH=target\release\%BASE_BINARY%"
+)
+
+if exist "%SRC_PATH%" (
+    copy /Y "%SRC_PATH%" "%DEST_PATH%" >nul
+    echo ✅ Copied binary to %DEST_PATH%
+) else (
+    echo ❌ Binary not found at %SRC_PATH%
+    echo ⚠️ Contents of ..\target\release:
+    dir "..\target\release"
+    exit /b 1
+)
+
+REM Build using npm scripts
+echo.
+echo 📦 Building complete Tauri application...
 echo.
 
 if %USE_PNPM% equ 1 (
-    pnpm run tauri:build:vulkan
+    call pnpm run tauri:build
 ) else (
-    npm run tauri:build:vulkan
+    call npm run tauri:build
 )
 
 if errorlevel 1 (
@@ -144,7 +214,7 @@ exit /b 0
 :_print_help
 echo.
 echo ========================================
-echo   Meetily GPU Build Script - Help
+echo   IQ:capture GPU Build Script - Help
 echo ========================================
 echo.
 echo USAGE:
@@ -158,7 +228,7 @@ echo   /?        Show this help message
 echo.
 echo DESCRIPTION:
 echo   This script automatically detects your GPU and builds
-echo   Meetily with optimal hardware acceleration features:
+echo   IQ:capture with optimal hardware acceleration features:
 echo.
 echo   - NVIDIA GPU    : Builds with CUDA acceleration
 echo   - AMD/Intel GPU : Builds with Vulkan acceleration

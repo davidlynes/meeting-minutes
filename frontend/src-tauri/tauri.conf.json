@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "IQcapture",
-    "version": "0.1.1",
+    "version": "0.2.1",
     "identifier": "com.iqcapture.ai",
     "build": {
         "frontendDist": "../out",
@@ -9,7 +9,6 @@
         "beforeDevCommand": "pnpm dev",
         "beforeBuildCommand": "pnpm build"
     },
-
     "app": {
         "windows": [{
             "title": "IQ:capture",
@@ -34,42 +33,59 @@
                     "$APPDATA/**"
                 ]
             },
-            "capabilities": [{
-                "identifier": "main",
-                "description": "Main window capability with file system and media access",
-                "windows": ["main"],
-                "permissions": [
-                    "fs:default",
-                    "fs:allow-read-file",
-                    "fs:read-all",
-                    "fs:write-all",
-                    "fs:allow-app-read",
-                    "fs:allow-app-write",
-                    "fs:allow-download-write",
-                    "fs:allow-download-read",
-                    "fs:scope-download",
-                    "core:path:default",
-                    "core:event:default",
-                    "core:window:default",
-                    "core:app:default",
-                    "core:resources:default",
-                    "core:menu:default",
-                    "core:tray:default",
-                    "core:window:allow-set-title",
-                    "store:default",
-                    "notification:default",
-                    "notification:allow-is-permission-granted",
-                    {
-                        "identifier": "fs:scope",
-                        "allow": [{ "path": "$APPDATA/*" }]
-                    }
-                ]
-            }]
+            "capabilities": [
+                {
+                    "identifier": "main",
+                    "description": "Main window capability with file system and media access",
+                    "windows": [
+                        "main"
+                    ],
+                    "permissions": [
+                        "fs:default",
+                        "fs:allow-read-file",
+                        "fs:read-all",
+                        "fs:write-all",
+                        "fs:allow-app-read",
+                        "fs:allow-app-write",
+                        "fs:allow-download-write",
+                        "fs:allow-download-read",
+                        "fs:scope-download",
+                        "core:path:default",
+                        "core:event:default",
+                        "core:window:default",
+                        "core:app:default",
+                        "core:resources:default",
+                        "core:menu:default",
+                        "core:tray:default",
+                        "core:window:allow-set-title",
+                        "store:default",
+                        "notification:default",
+                        "notification:allow-is-permission-granted",
+                        "process:default",
+                        {
+                            "identifier": "fs:scope",
+                            "allow": [
+                                {
+                                    "path": "$APPDATA/*"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
         }
     },
     "bundle": {
         "active": true,
-        "targets": "all",
+        "targets": [
+            "deb",
+            "appimage",
+            "msi",
+            "nsis",
+            "app",
+            "dmg"
+        ],
+        "createUpdaterArtifacts": false,
         "icon": [
             "icons/icon.png",
             "icons/app_icon.icns",
@@ -77,6 +93,18 @@
         ],
         "resources": [
             "templates/*.json"
-        ]
+        ],
+        "externalBin": [
+            "binaries/llama-helper",
+            "binaries/ffmpeg"
+        ],
+        "macOS": {
+            "entitlements": "entitlements.plist",
+            "signingIdentity": "-",
+            "hardenedRuntime": true
+        },
+        "windows": {
+            "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
+        }
     }
 }
