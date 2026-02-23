@@ -1,5 +1,6 @@
 use crate::api::api::APP_SERVER_URL;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::Duration;
 
 /// Response shape from the backend /api/releases/latest endpoint.
@@ -159,16 +160,38 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateCheckRes
         current_version
     );
 
-    // Try MongoDB first if configured
-    if crate::mongodb_client::is_configured() {
+    let (result, source) = if crate::mongodb_client::is_configured() {
         match check_updates_via_mongodb(&current_version).await {
-            Ok(result) => return Ok(result),
+            Ok(r) => (Ok(r), "mongodb"),
             Err(e) => {
                 log::warn!("MongoDB update check failed, falling back to API: {}", e);
+                (check_updates_via_api(&current_version).await, "api")
             }
         }
+    } else {
+        (check_updates_via_api(&current_version).await, "api")
+    };
+
+    // Fire PostHog analytics event
+    if let Some(client) = crate::analytics::commands::get_analytics_client() {
+        let mut props = HashMap::new();
+        props.insert("source".to_string(), source.to_string());
+        props.insert("current_version".to_string(), current_version.clone());
+        match &result {
+            Ok(r) => {
+                props.insert("success".to_string(), "true".to_string());
+                props.insert("update_available".to_string(), r.available.to_string());
+                if let Some(v) = &r.version {
+                    props.insert("latest_version".to_string(), v.clone());
+                }
+            }
+            Err(e) => {
+                props.insert("success".to_string(), "false".to_string());
+                props.insert("error".to_string(), e.clone());
+            }
+        }
+        let _ = client.track_event("update_check_completed", Some(props)).await;
     }
 
-    // Fallback to HTTP API
-    check_updates_via_api(&current_version).await
+    result
 }
