@@ -13,7 +13,7 @@ interface TranscriptContextType {
   transcripts: Transcript[];
   transcriptsRef: MutableRefObject<Transcript[]>
   addTranscript: (update: TranscriptUpdate) => void;
-  copyTranscript: () => void;
+  copyTranscript: () => Promise<void>;
   flushBuffer: () => void;
   transcriptContainerRef: React.RefObject<HTMLDivElement>;
   meetingTitle: string;
@@ -461,7 +461,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Copy transcript to clipboard with recording-relative timestamps
-  const copyTranscript = useCallback(() => {
+  const copyTranscript = useCallback(async () => {
     // Format timestamps as recording-relative [MM:SS] instead of wall-clock time
     const formatTime = (seconds: number | undefined): string => {
       if (seconds === undefined) return '[--:--]';
@@ -474,7 +474,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     const fullTranscript = transcripts
       .map(t => `${formatTime(t.audio_start_time)} ${t.text}`)
       .join('\n');
-    copyToClipboard(fullTranscript);
+    await copyToClipboard(fullTranscript);
 
     toast.success("Transcript copied to clipboard");
   }, [transcripts]);

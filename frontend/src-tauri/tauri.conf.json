@@ -62,6 +62,7 @@
                         "notification:default",
                         "notification:allow-is-permission-granted",
                         "process:default",
+                        "clipboard-manager:allow-write-text",
                         {
                             "identifier": "fs:scope",
                             "allow": [

@@ -2,6 +2,13 @@
 const nextConfig = {
   reactStrictMode: false, // Disabled for BlockNote compatibility
   output: 'export',
+
+  // Strip console.log and console.debug from production builds (warn/error preserved)
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production'
+      ? { exclude: ['warn', 'error'] }
+      : false,
+  },
   images: {
     unoptimized: true,
   },

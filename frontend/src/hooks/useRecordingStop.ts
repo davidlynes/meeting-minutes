@@ -156,33 +156,25 @@ export function useRecordingStop(
         transcriptionComplete = true;
       });
 
-      // Poll for transcription status
+      // Poll for transcription status (runs every 500ms — minimal logging)
       while (elapsedTime < MAX_WAIT_TIME && !transcriptionComplete) {
         try {
           const status = await transcriptService.getTranscriptionStatus();
-          console.log('Transcription status:', status);
 
-          // Check if transcription is complete
           if (!status.is_processing && status.chunks_in_queue === 0) {
-            console.log('Transcription complete - no active processing and no chunks in queue');
             transcriptionComplete = true;
             break;
           }
 
-          // If no activity for more than 8 seconds and no chunks in queue, consider it done (increased from 5s to 8s)
           if (status.last_activity_ms > 8000 && status.chunks_in_queue === 0) {
-            console.log('Transcription likely complete - no recent activity and empty queue');
             transcriptionComplete = true;
             break;
           }
 
-          // Update user with current status
           if (status.chunks_in_queue > 0) {
-            console.log(`Processing ${status.chunks_in_queue} remaining audio chunks...`);
             setStatus(RecordingStatus.PROCESSING_TRANSCRIPTS, `Processing ${status.chunks_in_queue} remaining chunks...`);
           }
 
-          // Wait before next check
           await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
           elapsedTime += POLL_INTERVAL;
         } catch (error) {

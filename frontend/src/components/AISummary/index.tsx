@@ -404,7 +404,7 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
       setIsDragging(false);
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey)) {
         if (e.key === 'z') {
           e.preventDefault();
@@ -424,7 +424,7 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
             return '';
           }).filter(Boolean);
 
-          copyToClipboard(blockContents.join('\n'));
+          await copyToClipboard(blockContents.join('\n'));
         }
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlocks.length > 1) {
         e.preventDefault();
@@ -519,9 +519,9 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
     });
   };
 
-  const handleCopyBlocks = useCallback(() => {
+  const handleCopyBlocks = useCallback(async () => {
     const content = getSelectedBlocksContent();
-    copyToClipboard(content);
+    await copyToClipboard(content);
     setContextMenu(prev => ({ ...prev, visible: false }));
   }, [getSelectedBlocksContent]);
 
@@ -769,9 +769,9 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
             </svg>
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
               const markdown = convertToMarkdown();
-              copyToClipboard(markdown);
+              await copyToClipboard(markdown);
             }}
             className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md flex items-center space-x-1"
           >
