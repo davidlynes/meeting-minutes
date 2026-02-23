@@ -6,6 +6,7 @@
 use anyhow::Result;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -59,6 +60,80 @@ pub struct TranscriptionStatus {
     pub chunks_in_queue: usize,
     pub is_processing: bool,
     pub last_activity_ms: u64,
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/// Classify device type from device name (privacy-safe categorization)
+fn classify_device_type(device_name: &str) -> &'static str {
+    let name_lower = device_name.to_lowercase();
+    if name_lower.contains("bluetooth")
+        || name_lower.contains("airpods")
+        || name_lower.contains("beats")
+        || name_lower.contains("headphones")
+        || name_lower.contains("bt ")
+        || name_lower.contains("wireless")
+    {
+        "Bluetooth"
+    } else {
+        "Wired"
+    }
+}
+
+/// Fire a PostHog event capturing recording session configuration.
+/// Called after the recording pipeline is fully initialized.
+async fn track_recording_session_started<R: Runtime>(
+    app: &AppHandle<R>,
+    mic_name: &str,
+    system_name: Option<&str>,
+    auto_save: bool,
+    device_source: &str,
+) {
+    if let Some(client) = crate::analytics::commands::get_analytics_client() {
+        // Get transcription config from local DB (fast read)
+        let (transcription_provider, transcription_model) =
+            match crate::api::api::api_get_transcript_config(
+                app.clone(),
+                app.clone().state(),
+                None,
+            )
+            .await
+            {
+                Ok(Some(config)) => (config.provider, config.model),
+                _ => ("unknown".to_string(), "unknown".to_string()),
+            };
+
+        let mut props = HashMap::new();
+        props.insert("mic_device".to_string(), mic_name.to_string());
+        props.insert(
+            "system_device".to_string(),
+            system_name.unwrap_or("none").to_string(),
+        );
+        props.insert(
+            "mic_device_type".to_string(),
+            classify_device_type(mic_name).to_string(),
+        );
+        props.insert(
+            "system_device_type".to_string(),
+            system_name
+                .map(|n| classify_device_type(n).to_string())
+                .unwrap_or_else(|| "none".to_string()),
+        );
+        props.insert("transcription_provider".to_string(), transcription_provider);
+        props.insert("transcription_model".to_string(), transcription_model);
+        props.insert("auto_save".to_string(), auto_save.to_string());
+        props.insert("device_source".to_string(), device_source.to_string());
+
+        match client
+            .track_event("recording_session_started", Some(props))
+            .await
+        {
+            Ok(_) => info!("✅ PostHog: recording_session_started tracked"),
+            Err(e) => warn!("⚠️ PostHog: failed to track recording_session_started: {}", e),
+        }
+    }
 }
 
 // ============================================================================
@@ -127,6 +202,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     // ============================================================================
     // MICROPHONE DEVICE RESOLUTION: Preference → Default → Error
     // ============================================================================
+    let had_mic_preference = preferred_mic_name.is_some();
     let microphone_device = match preferred_mic_name {
         Some(pref_name) => {
             info!("🎤 Attempting to use preferred microphone: '{}'", pref_name);
@@ -299,6 +375,37 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
 
     info!("✅ Recording started successfully with async-first approach");
 
+    // Track recording session started analytics (fire-and-forget)
+    {
+        let mic_name = {
+            let mg = RECORDING_MANAGER.lock().unwrap();
+            mg.as_ref()
+                .and_then(|m| m.get_state().get_microphone_device().map(|d| d.name.clone()))
+                .unwrap_or_else(|| "unknown".to_string())
+        };
+        let sys_name = {
+            let mg = RECORDING_MANAGER.lock().unwrap();
+            mg.as_ref()
+                .and_then(|m| m.get_state().get_system_device().map(|d| d.name.clone()))
+        };
+        let device_source = if had_mic_preference {
+            "preference"
+        } else {
+            "default"
+        };
+        let app_clone = app.clone();
+        tokio::spawn(async move {
+            track_recording_session_started(
+                &app_clone,
+                &mic_name,
+                sys_name.as_deref(),
+                auto_save,
+                device_source,
+            )
+            .await;
+        });
+    }
+
     Ok(())
 }
 
@@ -469,6 +576,32 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     crate::tray::update_tray_menu(&app);
 
     info!("✅ Recording started with custom devices using async-first approach");
+
+    // Track recording session started analytics (fire-and-forget)
+    {
+        let mic_name = {
+            let mg = RECORDING_MANAGER.lock().unwrap();
+            mg.as_ref()
+                .and_then(|m| m.get_state().get_microphone_device().map(|d| d.name.clone()))
+                .unwrap_or_else(|| "unknown".to_string())
+        };
+        let sys_name = {
+            let mg = RECORDING_MANAGER.lock().unwrap();
+            mg.as_ref()
+                .and_then(|m| m.get_state().get_system_device().map(|d| d.name.clone()))
+        };
+        let app_clone = app.clone();
+        tokio::spawn(async move {
+            track_recording_session_started(
+                &app_clone,
+                &mic_name,
+                sys_name.as_deref(),
+                auto_save,
+                "explicit",
+            )
+            .await;
+        });
+    }
 
     Ok(())
 }
@@ -716,22 +849,6 @@ pub async fn stop_recording<R: Runtime>(
     // Now perform async analytics tracking without holding manager reference
     if let Some((total_duration, active_duration, pause_duration, transcript_segments_count, had_fatal_error, mic_device_name, sys_device_name, chunks_processed)) = analytics_data {
         info!("📊 Collecting analytics for meeting end");
-
-        // Helper function to classify device type from device name (privacy-safe)
-        fn classify_device_type(device_name: &str) -> &'static str {
-            let name_lower = device_name.to_lowercase();
-            // Check for Bluetooth keywords
-            if name_lower.contains("bluetooth")
-                || name_lower.contains("airpods")
-                || name_lower.contains("beats")
-                || name_lower.contains("headphones")
-                || name_lower.contains("bt ")
-                || name_lower.contains("wireless") {
-                "Bluetooth"
-            } else {
-                "Wired"
-            }
-        }
 
         // Get transcription model info (already loaded above for model unload)
         let transcription_config = match crate::api::api::api_get_transcript_config(
