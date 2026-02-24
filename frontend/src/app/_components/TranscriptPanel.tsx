@@ -2,12 +2,11 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { PermissionWarning } from '@/components/PermissionWarning';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, GlobeIcon, FileUp, Loader2 } from 'lucide-react';
+import { Copy, GlobeIcon } from 'lucide-react';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
-import { useImportAudio } from '@/hooks/useImportAudio';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
 import { useMemo } from 'react';
@@ -36,7 +35,6 @@ export function TranscriptPanel({
   const { transcriptModelConfig } = useConfig();
   const { isRecording, isPaused } = useRecordingState();
   const { checkPermissions, isChecking, hasSystemAudio, hasMicrophone } = usePermissionCheck();
-  const { importAudio, isImporting, progress } = useImportAudio();
   const isLinux = useIsLinux();
 
   // Convert transcripts to segments for virtualized view
@@ -85,20 +83,6 @@ export function TranscriptPanel({
                     </span>
                   </Button>
                 }
-                {!isRecording && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={importAudio}
-                    disabled={isImporting}
-                    title="Import Audio File"
-                  >
-                    {isImporting ? <Loader2 className="animate-spin" /> : <FileUp />}
-                    <span className='hidden md:inline'>
-                      {isImporting ? `${progress.percent}%` : 'Import'}
-                    </span>
-                  </Button>
-                )}
               </ButtonGroup>
             </div>
           </div>

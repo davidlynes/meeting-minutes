@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen } from 'lucide-react';
+import { Copy, FolderOpen, FileUp, Loader2 } from 'lucide-react';
+import { useImportAudio } from '@/hooks/useImportAudio';
 import Analytics from '@/lib/analytics';
 
 
@@ -18,6 +19,8 @@ export function TranscriptButtonGroup({
   onCopyTranscript,
   onOpenMeetingFolder
 }: TranscriptButtonGroupProps) {
+  const { importAudio, isImporting, progress } = useImportAudio();
+
   return (
     <div className="flex items-center justify-center w-full gap-2">
       <ButtonGroup>
@@ -47,6 +50,22 @@ export function TranscriptButtonGroup({
         >
           <FolderOpen className="xl:mr-2" size={18} />
           <span className="hidden lg:inline">Recording</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            Analytics.trackButtonClick('import_audio', 'meeting_details');
+            importAudio();
+          }}
+          disabled={isImporting}
+          title="Import Audio File"
+        >
+          {isImporting ? <Loader2 className="animate-spin" /> : <FileUp />}
+          <span className="hidden lg:inline">
+            {isImporting ? `${progress.percent}%` : 'Import'}
+          </span>
         </Button>
       </ButtonGroup>
     </div>
