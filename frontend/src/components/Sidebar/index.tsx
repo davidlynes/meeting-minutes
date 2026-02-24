@@ -81,6 +81,13 @@ const Sidebar: React.FC = React.memo(() => {
   });
   const [editingTitle, setEditingTitle] = useState<string>('');
 
+  // Prefetch heavy routes so Next.js compiles them in the background at startup
+  // instead of on first click (avoids ~8s compilation lag on /meeting-details)
+  useEffect(() => {
+    router.prefetch('/meeting-details');
+    router.prefetch('/settings');
+  }, [router]);
+
   // Ensure 'meetings' folder is always expanded
   useEffect(() => {
     if (!expandedFolders.has('meetings')) {
