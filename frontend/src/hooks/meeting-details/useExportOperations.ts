@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { generateDocxFromMarkdown, BrandTemplate } from '@/lib/docxExport';
+import { generatePdfFromMarkdown } from '@/lib/pdfExport';
 import { load as loadStore } from '@tauri-apps/plugin-store';
 
 interface UseExportOperationsProps {
@@ -156,8 +157,91 @@ export function useExportOperations({
     }
   }, [meeting, meetingTitle, aiSummary, blockNoteSummaryRef, selectedBrandId]);
 
+  const handleExportPdf = useCallback(async () => {
+    try {
+      let summaryMarkdown = '';
+
+      // Try to get markdown from BlockNote editor first
+      if (blockNoteSummaryRef.current?.getMarkdown) {
+        summaryMarkdown = await blockNoteSummaryRef.current.getMarkdown();
+      }
+
+      // Fallback: Check if aiSummary has markdown property
+      if (!summaryMarkdown && aiSummary && 'markdown' in aiSummary) {
+        summaryMarkdown = (aiSummary as any).markdown || '';
+      }
+
+      // Fallback: Convert legacy format
+      if (!summaryMarkdown && aiSummary) {
+        const sections = Object.entries(aiSummary)
+          .filter(([key]) => key !== 'markdown' && key !== 'summary_json' && key !== '_section_order' && key !== 'MeetingName')
+          .map(([, section]) => {
+            if (section && typeof section === 'object' && 'title' in section && 'blocks' in section) {
+              const sectionTitle = `## ${section.title}\n\n`;
+              const sectionContent = section.blocks
+                .map((block: any) => `- ${block.content}`)
+                .join('\n');
+              return sectionTitle + sectionContent;
+            }
+            return '';
+          })
+          .filter(s => s.trim())
+          .join('\n\n');
+        summaryMarkdown = sections;
+      }
+
+      if (!summaryMarkdown.trim()) {
+        toast.error('No summary content available to export');
+        return;
+      }
+
+      // Load brand template and logo
+      let brand: BrandTemplate | undefined;
+      let logoBytes: Uint8Array | undefined;
+
+      try {
+        brand = await invoke<BrandTemplate>('api_get_brand_template', { id: selectedBrandId });
+        const logoData = await invoke<number[] | null>('api_get_brand_template_logo', { id: selectedBrandId });
+        if (logoData) {
+          logoBytes = new Uint8Array(logoData);
+        }
+      } catch (e) {
+        console.warn('Failed to load brand template, exporting without branding:', e);
+      }
+
+      // Generate the PDF bytes
+      const dateStr = new Date(meeting.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      const bytes = await generatePdfFromMarkdown(summaryMarkdown, meetingTitle, dateStr, brand, logoBytes);
+
+      // Sanitize the title for use as a filename
+      const safeTitle = meetingTitle.replace(/[<>:"/\\|?*]/g, '_').trim() || 'meeting-summary';
+
+      // Open native save dialog
+      const filePath = await save({
+        defaultPath: `${safeTitle}.pdf`,
+        filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+      });
+
+      if (!filePath) {
+        return;
+      }
+
+      // Write the file via Rust command
+      await invoke('write_bytes_to_file', { path: filePath, data: Array.from(bytes) });
+      toast.success('PDF document exported successfully');
+    } catch (error) {
+      console.error('Failed to export PDF document:', error);
+      toast.error('Failed to export PDF document');
+    }
+  }, [meeting, meetingTitle, aiSummary, blockNoteSummaryRef, selectedBrandId]);
+
   return {
     handleExportWord,
+    handleExportPdf,
     selectedBrandId,
     setSelectedBrandId: handleSetBrandId,
     brandTemplates,
