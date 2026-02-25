@@ -293,6 +293,31 @@ impl WhisperEngine {
     }
     
     pub async fn load_model(&self, model_name: &str) -> Result<()> {
+        // Runtime CPU feature check to prevent ILLEGAL_INSTRUCTION crashes on Windows
+        // whisper.cpp/ggml requires at minimum SSE3; AVX is strongly recommended
+        #[cfg(target_arch = "x86_64")]
+        {
+            if !is_x86_feature_detected!("sse3") {
+                return Err(anyhow!(
+                    "CPU does not support SSE3 instructions required by the transcription engine. \
+                     Please use a newer CPU or switch to server-based transcription."
+                ));
+            }
+            if !is_x86_feature_detected!("avx") {
+                log::warn!(
+                    "CPU does not support AVX instructions. Transcription may be very slow. \
+                     Consider using server-based transcription for better performance."
+                );
+            }
+            log::info!(
+                "CPU features: SSE3={}, AVX={}, AVX2={}, FMA={}",
+                is_x86_feature_detected!("sse3"),
+                is_x86_feature_detected!("avx"),
+                is_x86_feature_detected!("avx2"),
+                is_x86_feature_detected!("fma"),
+            );
+        }
+
         let models = self.available_models.read().await;
         let model_info = models.get(model_name)
             .ok_or_else(|| anyhow!("Model {} not found", model_name))?;
