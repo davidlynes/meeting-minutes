@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, Save, Loader2, FileDown, ChevronDown, Check } from 'lucide-react';
+import { Copy, Save, Loader2, FileDown, FileText, ChevronDown, Check } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -25,6 +25,7 @@ interface SummaryUpdaterButtonGroupProps {
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
   onExportWord: () => Promise<void>;
+  onExportPdf: () => Promise<void>;
   onFind?: () => void;
   onOpenFolder: () => Promise<void>;
   hasSummary: boolean;
@@ -39,6 +40,7 @@ export function SummaryUpdaterButtonGroup({
   onSave,
   onCopy,
   onExportWord,
+  onExportPdf,
   onFind,
   onOpenFolder,
   hasSummary,
@@ -139,6 +141,22 @@ export function SummaryUpdaterButtonGroup({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Export PDF button */}
+      <Button
+        variant="outline"
+        size="sm"
+        title={`Export as PDF Document (${selectedBrandName})`}
+        onClick={() => {
+          Analytics.trackButtonClick('export_pdf', 'meeting_details');
+          onExportPdf();
+        }}
+        disabled={!hasSummary}
+        className="cursor-pointer"
+      >
+        <FileText />
+        <span className="hidden lg:inline">PDF</span>
+      </Button>
     </ButtonGroup>
   );
 }
