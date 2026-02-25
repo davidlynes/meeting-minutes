@@ -42,6 +42,11 @@ try {
         exit 1
     }
 
+    # Use ggml compatibility toolchain to avoid ILLEGAL_INSTRUCTION crashes on CPUs
+    # without AVX2/FMA (disables GGML_NATIVE, enables only AVX for broad compatibility)
+    $env:CMAKE_TOOLCHAIN_FILE = Join-Path $PSScriptRoot "src-tauri\cmake\ggml-compat.cmake"
+    Write-Host "Using GGML compat toolchain: $env:CMAKE_TOOLCHAIN_FILE" -ForegroundColor Yellow
+
     Write-Host "Building complete Tauri application with Vulkan acceleration..." -ForegroundColor Cyan
     Write-Host ""
 

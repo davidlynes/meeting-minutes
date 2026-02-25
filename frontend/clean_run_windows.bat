@@ -21,6 +21,10 @@ if %ERRORLEVEL% NEQ 0 (
 :: Use Ninja generator (CMake may not support the latest VS generator yet)
 set CMAKE_GENERATOR=Ninja
 
+:: Use ggml compatibility toolchain to avoid ILLEGAL_INSTRUCTION crashes on CPUs
+:: without AVX2/FMA (disables GGML_NATIVE, enables only AVX for broad compatibility)
+set CMAKE_TOOLCHAIN_FILE=%~dp0src-tauri\cmake\ggml-compat.cmake
+
 :: Build llama-helper sidecar binary
 echo.
 echo Building llama-helper...
