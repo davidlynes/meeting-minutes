@@ -3,7 +3,7 @@ import { Summary } from '@/types';
 import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { toast } from 'sonner';
 import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { invoke } from '@tauri-apps/api/core';
 import { generateDocxFromMarkdown } from '@/lib/docxExport';
 
 interface UseExportOperationsProps {
@@ -80,8 +80,8 @@ export function useExportOperations({
         return;
       }
 
-      // Write the file
-      await writeFile(filePath, bytes);
+      // Write the file via Rust command (bypasses fs plugin scope restrictions)
+      await invoke('write_bytes_to_file', { path: filePath, data: Array.from(bytes) });
       toast.success('Word document exported successfully');
     } catch (error) {
       console.error('Failed to export Word document:', error);

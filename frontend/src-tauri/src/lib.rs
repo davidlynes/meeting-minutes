@@ -399,6 +399,11 @@ pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
 }
 
+#[tauri::command]
+async fn write_bytes_to_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, &data).map_err(|e| format!("Failed to write file: {}", e))
+}
+
 // TODO: Remove after verifying PostHog crash reporting
 #[tauri::command]
 fn test_panic() {
@@ -567,6 +572,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             test_panic, // TODO: Remove after verifying PostHog crash reporting
+            write_bytes_to_file,
             start_recording,
             stop_recording,
             is_recording,

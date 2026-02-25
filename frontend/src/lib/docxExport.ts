@@ -177,6 +177,7 @@ export async function generateDocxFromMarkdown(
     sections: [{ children: paragraphs }],
   });
 
-  const buffer = await Packer.toBuffer(doc);
-  return new Uint8Array(buffer);
+  const blob = await Packer.toBlob(doc);
+  const arrayBuffer = await blob.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
 }
