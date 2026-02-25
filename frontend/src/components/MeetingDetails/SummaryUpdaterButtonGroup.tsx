@@ -93,7 +93,7 @@ export function SummaryUpdaterButtonGroup({
         <span className="hidden lg:inline">Copy</span>
       </Button>
 
-      {/* Export Word split button */}
+      {/* Export Word button */}
       <Button
         variant="outline"
         size="sm"
@@ -108,6 +108,24 @@ export function SummaryUpdaterButtonGroup({
         <FileDown />
         <span className="hidden lg:inline">Word</span>
       </Button>
+
+      {/* Export PDF button */}
+      <Button
+        variant="outline"
+        size="sm"
+        title={`Export as PDF Document (${selectedBrandName})`}
+        onClick={() => {
+          Analytics.trackButtonClick('export_pdf', 'meeting_details');
+          onExportPdf();
+        }}
+        disabled={!hasSummary}
+        className="cursor-pointer rounded-none border-l-0"
+      >
+        <FileText />
+        <span className="hidden lg:inline">PDF</span>
+      </Button>
+
+      {/* Brand template selector — applies to both Word and PDF exports */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -115,7 +133,7 @@ export function SummaryUpdaterButtonGroup({
             size="sm"
             disabled={!hasSummary}
             className="cursor-pointer px-1.5 rounded-l-none border-l-0"
-            title="Select brand template"
+            title={`Brand template: ${selectedBrandName}`}
           >
             <ChevronDown className="h-3 w-3" />
           </Button>
@@ -141,22 +159,6 @@ export function SummaryUpdaterButtonGroup({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Export PDF button */}
-      <Button
-        variant="outline"
-        size="sm"
-        title={`Export as PDF Document (${selectedBrandName})`}
-        onClick={() => {
-          Analytics.trackButtonClick('export_pdf', 'meeting_details');
-          onExportPdf();
-        }}
-        disabled={!hasSummary}
-        className="cursor-pointer"
-      >
-        <FileText />
-        <span className="hidden lg:inline">PDF</span>
-      </Button>
     </ButtonGroup>
   );
 }
