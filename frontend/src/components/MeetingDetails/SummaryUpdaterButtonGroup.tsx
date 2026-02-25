@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, Save, Loader2, Search, FolderOpen } from 'lucide-react';
+import { Copy, Save, Loader2, Search, FolderOpen, FileDown } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 
 interface SummaryUpdaterButtonGroupProps {
@@ -10,6 +10,7 @@ interface SummaryUpdaterButtonGroupProps {
   isDirty: boolean;
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
+  onExportWord: () => Promise<void>;
   onFind?: () => void;
   onOpenFolder: () => Promise<void>;
   hasSummary: boolean;
@@ -20,6 +21,7 @@ export function SummaryUpdaterButtonGroup({
   isDirty,
   onSave,
   onCopy,
+  onExportWord,
   onFind,
   onOpenFolder,
   hasSummary
@@ -65,6 +67,22 @@ export function SummaryUpdaterButtonGroup({
       >
         <Copy />
         <span className="hidden lg:inline">Copy</span>
+      </Button>
+
+      {/* Export Word button */}
+      <Button
+        variant="outline"
+        size="sm"
+        title="Export as Word Document"
+        onClick={() => {
+          Analytics.trackButtonClick('export_word', 'meeting_details');
+          onExportWord();
+        }}
+        disabled={!hasSummary}
+        className="cursor-pointer"
+      >
+        <FileDown />
+        <span className="hidden lg:inline">Word</span>
       </Button>
 
       {/* Find button */}
