@@ -62,6 +62,23 @@ function parseInlineFormatting(
   return runs;
 }
 
+/** Read PNG dimensions from header bytes */
+function getPngDimensions(data: Uint8Array): { width: number; height: number } | null {
+  // PNG signature check (first 8 bytes)
+  if (data.length < 24) return null;
+  if (data[0] !== 0x89 || data[1] !== 0x50) return null;
+  // IHDR chunk: width at byte 16, height at byte 20 (big-endian uint32)
+  const width = (data[16] << 24 | data[17] << 16 | data[18] << 8 | data[19]) >>> 0;
+  const height = (data[20] << 24 | data[21] << 16 | data[22] << 8 | data[23]) >>> 0;
+  if (width > 0 && height > 0) return { width, height };
+  return null;
+}
+
+/** Check if a trimmed line is a list item (bullet or ordered) */
+function isListItem(line: string): boolean {
+  return /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line);
+}
+
 /** Convert a markdown string into a .docx Uint8Array */
 export async function generateDocxFromMarkdown(
   markdown: string,
@@ -82,18 +99,36 @@ export async function generateDocxFromMarkdown(
   const h2Size = brand?.headingSizes.h2;
   const h3Size = brand?.headingSizes.h3;
 
-  // Logo at top of document
+  // Logo at top of document — preserve aspect ratio, fit within max bounds
   if (logoBytes && logoBytes.length > 0) {
+    const maxWidth = 120;
+    const maxHeight = 120;
+    let imgWidth = maxWidth;
+    let imgHeight = maxHeight;
+
+    const dims = getPngDimensions(logoBytes);
+    if (dims) {
+      const aspect = dims.width / dims.height;
+      if (aspect >= 1) {
+        // Landscape or square
+        imgWidth = maxWidth;
+        imgHeight = Math.round(maxWidth / aspect);
+      } else {
+        // Portrait
+        imgHeight = maxHeight;
+        imgWidth = Math.round(maxHeight * aspect);
+      }
+    }
+
     paragraphs.push(
       new Paragraph({
         children: [
           new ImageRun({
             data: logoBytes,
-            transformation: { width: 150, height: 50 },
+            transformation: { width: imgWidth, height: imgHeight },
             type: 'png',
           }),
         ],
-        alignment: AlignmentType.CENTER,
         spacing: { after: 200 },
       }),
     );
@@ -112,8 +147,7 @@ export async function generateDocxFromMarkdown(
         }),
       ],
       heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 100 },
+      spacing: { after: 80 },
     }),
   );
 
@@ -124,12 +158,20 @@ export async function generateDocxFromMarkdown(
         new TextRun({
           text: date,
           color: bodyColor ?? '666666',
-          size: 22,
+          size: 20,
           font: bodyFont,
         }),
       ],
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 300 },
+      spacing: { after: 200 },
+    }),
+  );
+
+  // Horizontal rule separator after date
+  paragraphs.push(
+    new Paragraph({
+      children: [new TextRun({ text: '' })],
+      border: { bottom: { style: 'single' as any, size: 4, color: primaryColor ?? 'CCCCCC' } },
+      spacing: { after: 200 },
     }),
   );
 
@@ -137,13 +179,30 @@ export async function generateDocxFromMarkdown(
   let orderedListCounter = 0;
 
   const lines = markdown.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
 
-    // Skip empty lines (add spacing)
+    // Handle empty lines — collapse consecutive empties and skip spacers
+    // between list items to avoid double-spacing bullets
     if (!trimmed) {
       orderedListCounter = 0;
-      paragraphs.push(new Paragraph({ spacing: { after: 100 } }));
+
+      // Look at what's before and after this blank line
+      const prevLine = i > 0 ? lines[i - 1].trim() : '';
+      const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
+
+      // Skip blank lines between consecutive list items
+      if (isListItem(prevLine) && isListItem(nextLine)) {
+        continue;
+      }
+
+      // Skip consecutive blank lines (only emit one spacer)
+      if (i > 0 && lines[i - 1].trim() === '') {
+        continue;
+      }
+
+      // Add a modest spacer for section breaks
+      paragraphs.push(new Paragraph({ spacing: { after: 80 } }));
       continue;
     }
 
@@ -158,7 +217,7 @@ export async function generateDocxFromMarkdown(
             size: h3Size,
           }),
           heading: HeadingLevel.HEADING_3,
-          spacing: { before: 200, after: 100 },
+          spacing: { before: 160, after: 80 },
         }),
       );
     } else if (trimmed.startsWith('## ')) {
@@ -171,7 +230,7 @@ export async function generateDocxFromMarkdown(
             size: h2Size,
           }),
           heading: HeadingLevel.HEADING_2,
-          spacing: { before: 240, after: 120 },
+          spacing: { before: 200, after: 80 },
         }),
       );
     } else if (trimmed.startsWith('# ')) {
@@ -184,7 +243,7 @@ export async function generateDocxFromMarkdown(
             size: h1Size,
           }),
           heading: HeadingLevel.HEADING_1,
-          spacing: { before: 280, after: 140 },
+          spacing: { before: 240, after: 100 },
         }),
       );
     }
@@ -194,8 +253,8 @@ export async function generateDocxFromMarkdown(
       paragraphs.push(
         new Paragraph({
           children: [new TextRun({ text: '' })],
-          border: { bottom: { style: 'single' as any, size: 6, color: 'CCCCCC' } },
-          spacing: { before: 100, after: 100 },
+          border: { bottom: { style: 'single' as any, size: 4, color: 'CCCCCC' } },
+          spacing: { before: 80, after: 80 },
         }),
       );
     }
@@ -207,7 +266,7 @@ export async function generateDocxFromMarkdown(
         new Paragraph({
           children: parseInlineFormatting(content, { font: bodyFont, color: bodyColor }),
           bullet: { level: 0 },
-          spacing: { after: 60 },
+          spacing: { after: 40 },
         }),
       );
     }
@@ -222,7 +281,7 @@ export async function generateDocxFromMarkdown(
             ...parseInlineFormatting(content, { font: bodyFont, color: bodyColor }),
           ],
           indent: { left: 720 },
-          spacing: { after: 60 },
+          spacing: { after: 40 },
         }),
       );
     }
@@ -232,7 +291,7 @@ export async function generateDocxFromMarkdown(
       paragraphs.push(
         new Paragraph({
           children: parseInlineFormatting(trimmed, { font: bodyFont, color: bodyColor }),
-          spacing: { after: 120 },
+          spacing: { after: 100 },
         }),
       );
     }
@@ -251,7 +310,7 @@ export async function generateDocxFromMarkdown(
                     .replace('{date}', date),
                   font: headingFont,
                   color: primaryColor ?? '999999',
-                  size: 18,
+                  size: 16,
                 }),
               ],
               alignment: AlignmentType.RIGHT,
