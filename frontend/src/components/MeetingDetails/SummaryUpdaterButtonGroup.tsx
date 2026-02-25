@@ -2,17 +2,35 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, Save, Loader2, Search, FolderOpen } from 'lucide-react';
+import { Copy, Save, Loader2, FileDown, ChevronDown, Check } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import Analytics from '@/lib/analytics';
+
+interface BrandTemplateInfo {
+  id: string;
+  name: string;
+  is_bundled: boolean;
+}
 
 interface SummaryUpdaterButtonGroupProps {
   isSaving: boolean;
   isDirty: boolean;
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
+  onExportWord: () => Promise<void>;
   onFind?: () => void;
   onOpenFolder: () => Promise<void>;
   hasSummary: boolean;
+  brandTemplates?: BrandTemplateInfo[];
+  selectedBrandId?: string;
+  onBrandChange?: (id: string) => void;
 }
 
 export function SummaryUpdaterButtonGroup({
@@ -20,10 +38,16 @@ export function SummaryUpdaterButtonGroup({
   isDirty,
   onSave,
   onCopy,
+  onExportWord,
   onFind,
   onOpenFolder,
-  hasSummary
+  hasSummary,
+  brandTemplates = [],
+  selectedBrandId = 'iq-standard',
+  onBrandChange,
 }: SummaryUpdaterButtonGroupProps) {
+  const selectedBrandName = brandTemplates.find(b => b.id === selectedBrandId)?.name || 'Default';
+
   return (
     <ButtonGroup>
       {/* Save button */}
@@ -67,23 +91,54 @@ export function SummaryUpdaterButtonGroup({
         <span className="hidden lg:inline">Copy</span>
       </Button>
 
-      {/* Find button */}
-      {/* {onFind && (
-        <Button
-          variant="outline"
-          size="sm"
-          title="Find in Summary"
-          onClick={() => {
-            Analytics.trackButtonClick('find_in_summary', 'meeting_details');
-            onFind();
-          }}
-          disabled={!hasSummary}
-          className="cursor-pointer"
-        >
-          <Search />
-          <span className="hidden lg:inline">Find</span>
-        </Button>
-      )} */}
+      {/* Export Word split button */}
+      <Button
+        variant="outline"
+        size="sm"
+        title={`Export as Word Document (${selectedBrandName})`}
+        onClick={() => {
+          Analytics.trackButtonClick('export_word', 'meeting_details');
+          onExportWord();
+        }}
+        disabled={!hasSummary}
+        className="cursor-pointer rounded-r-none"
+      >
+        <FileDown />
+        <span className="hidden lg:inline">Word</span>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasSummary}
+            className="cursor-pointer px-1.5 rounded-l-none border-l-0"
+            title="Select brand template"
+          >
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[160px]">
+          <DropdownMenuLabel>Brand Template</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {brandTemplates.map((brand) => (
+            <DropdownMenuItem
+              key={brand.id}
+              onClick={() => onBrandChange?.(brand.id)}
+              className="cursor-pointer"
+            >
+              <span className="flex items-center gap-2 w-full">
+                {brand.id === selectedBrandId && <Check className="h-3 w-3" />}
+                {brand.id !== selectedBrandId && <span className="w-3" />}
+                {brand.name}
+              </span>
+            </DropdownMenuItem>
+          ))}
+          {brandTemplates.length === 0 && (
+            <DropdownMenuItem disabled>No templates available</DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </ButtonGroup>
   );
 }

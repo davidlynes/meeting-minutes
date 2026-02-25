@@ -63,6 +63,7 @@
                         "notification:allow-is-permission-granted",
                         "process:default",
                         "clipboard-manager:allow-write-text",
+                        "dialog:default",
                         {
                             "identifier": "fs:scope",
                             "allow": [
@@ -93,7 +94,8 @@
             "icons/app_icon.ico"
         ],
         "resources": [
-            "templates/*.json"
+            "templates/*.json",
+            "brand_templates/*"
         ],
         "externalBin": [
             "binaries/llama-helper",

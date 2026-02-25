@@ -30,6 +30,7 @@ pub struct CustomOpenAIConfig {
     pub top_p: Option<f32>,
 }
 
+pub mod brand_templates;
 pub mod commands;
 pub mod llm_client;
 pub mod processor;
@@ -50,6 +51,14 @@ pub use template_commands::{
     __cmd__api_get_template_details, __cmd__api_list_templates, __cmd__api_sync_templates,
     __cmd__api_validate_template, api_get_template_details, api_list_templates,
     api_sync_templates, api_validate_template, sync_templates_internal,
+};
+
+// Re-export brand template commands
+pub use brand_templates::{
+    __cmd__api_delete_brand_template, __cmd__api_get_brand_template,
+    __cmd__api_get_brand_template_logo, __cmd__api_list_brand_templates,
+    __cmd__api_save_brand_template, api_delete_brand_template, api_get_brand_template,
+    api_get_brand_template_logo, api_list_brand_templates, api_save_brand_template,
 };
 
 // Re-export commonly used items
