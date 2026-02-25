@@ -526,6 +526,23 @@ pub fn run() {
                 log::warn!("Failed to resolve data directory for synced templates");
             }
 
+            // Initialize brand templates directories
+            if let Ok(resource_path) = _app.handle().path().resource_dir() {
+                let brand_dir = resource_path.join("brand_templates");
+                log::info!("Setting bundled brand templates directory to: {:?}", brand_dir);
+                summary::brand_templates::set_bundled_brand_templates_dir(brand_dir);
+            } else {
+                log::warn!("Failed to resolve resource directory for brand templates");
+            }
+            if let Some(mut data_dir) = dirs::data_dir() {
+                data_dir.push("IQcapture");
+                data_dir.push("brand_templates");
+                log::info!("Setting user brand templates directory to: {:?}", data_dir);
+                summary::brand_templates::set_user_brand_templates_dir(data_dir);
+            } else {
+                log::warn!("Failed to resolve data directory for user brand templates");
+            }
+
             // Non-blocking startup sync of templates from backend (MongoDB)
             // Delay to allow Windows Firewall prompts to be accepted before connecting
             tauri::async_runtime::spawn(async {
@@ -718,6 +735,12 @@ pub fn run() {
             summary::api_get_template_details,
             summary::api_validate_template,
             summary::api_sync_templates,
+            // Brand template commands
+            summary::api_list_brand_templates,
+            summary::api_get_brand_template,
+            summary::api_get_brand_template_logo,
+            summary::api_save_brand_template,
+            summary::api_delete_brand_template,
             // Built-in AI commands
             summary::summary_engine::builtin_ai_list_models,
             summary::summary_engine::builtin_ai_get_model_info,

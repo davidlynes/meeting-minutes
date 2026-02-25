@@ -49,6 +49,9 @@ interface SummaryPanelProps {
   onTemplateSelect: (templateId: string, templateName: string) => void;
   isModelConfigLoading?: boolean;
   onOpenModelSettings?: (openFn: () => void) => void;
+  brandTemplates?: Array<{ id: string; name: string; is_bundled: boolean }>;
+  selectedBrandId?: string;
+  onBrandChange?: (id: string) => void;
 }
 
 export function SummaryPanel({
@@ -85,7 +88,10 @@ export function SummaryPanel({
   selectedTemplate,
   onTemplateSelect,
   isModelConfigLoading = false,
-  onOpenModelSettings
+  onOpenModelSettings,
+  brandTemplates,
+  selectedBrandId,
+  onBrandChange,
 }: SummaryPanelProps) {
   const isSummaryLoading = summaryStatus === 'processing' || summaryStatus === 'summarizing' || summaryStatus === 'regenerating';
 
@@ -137,6 +143,9 @@ export function SummaryPanel({
                 }}
                 onOpenFolder={onOpenFolder}
                 hasSummary={!!aiSummary}
+                brandTemplates={brandTemplates}
+                selectedBrandId={selectedBrandId}
+                onBrandChange={onBrandChange}
               />
             </div>
           </div>

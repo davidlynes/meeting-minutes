@@ -229,6 +229,9 @@ export default function PageContent({
           onTemplateSelect={templates.handleTemplateSelection}
           isModelConfigLoading={false}
           onOpenModelSettings={handleRegisterModalOpen}
+          brandTemplates={exportOperations.brandTemplates}
+          selectedBrandId={exportOperations.selectedBrandId}
+          onBrandChange={exportOperations.setSelectedBrandId}
         />
       </div>
     </motion.div>
