@@ -726,9 +726,9 @@ impl AudioPipeline {
         // The VAD processor now handles 48kHz->16kHz resampling internally
         // This bridges natural pauses without excessive fragmentation
         // macOS: 400ms works well with Core Audio's tight buffering
-        // Windows: 2000ms needed to bridge WASAPI's chunkier delivery and natural pauses
+        // Windows: 1000ms balances WASAPI's chunkier delivery vs live transcription latency
 
-        let redemption_time = if cfg!(target_os = "macos") { 400 } else { 2000 };
+        let redemption_time = if cfg!(target_os = "macos") { 400 } else { 1000 };
 
         let vad_processor = match ContinuousVadProcessor::new(sample_rate, redemption_time) {
             Ok(processor) => {
@@ -941,8 +941,9 @@ impl AudioPipeline {
                 for segment in final_segments {
                     let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
 
-                    // Send segments >= 1s (16000 samples at 16kHz) - matches main pipeline filter
-                    if segment.samples.len() >= 16000 {
+                    // Final flush: use a low threshold (100ms / 1600 samples) to avoid
+                    // dropping the user's last words at end of recording
+                    if segment.samples.len() >= 1600 {
                         info!("📤 Sending final VAD segment to Whisper: {:.1}ms duration, {} samples",
                               duration_ms, segment.samples.len());
 
@@ -960,7 +961,7 @@ impl AudioPipeline {
                             self.chunk_id_counter += 1;
                         }
                     } else {
-                        info!("⏭️ Skipping short final segment: {:.1}ms ({} samples < 800)",
+                        info!("⏭️ Skipping short final segment: {:.1}ms ({} samples < 1600)",
                               duration_ms, segment.samples.len());
                     }
                 }
