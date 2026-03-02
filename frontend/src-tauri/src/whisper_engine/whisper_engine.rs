@@ -696,8 +696,8 @@ impl WhisperEngine {
             // Suppressor dropped here, stderr restored
         };
         let mut result = String::new();
-        let mut total_confidence = 0.0;
-        let mut segment_count = 0;
+        let mut total_token_prob = 0.0f32;
+        let mut total_tokens = 0usize;
 
         let num_segments = num_segments?;
         for i in 0..num_segments {
@@ -706,15 +706,15 @@ impl WhisperEngine {
                 Err(_) => continue,
             };
 
-            // Calculate confidence based on segment length and duration (simplified approach)
-            let segment_length = segment_text.len() as f32;
-            let segment_confidence = if segment_length > 0.0 {
-                (segment_length / 100.0).min(0.9) + 0.1 // 0.1 to 1.0 confidence based on text length
-            } else {
-                0.1
-            };
-            total_confidence += segment_confidence;
-            segment_count += 1;
+            // Extract real per-token probabilities from Whisper
+            if let Ok(n_tokens) = state.full_n_tokens(i) {
+                for t in 0..n_tokens {
+                    if let Ok(prob) = state.full_get_token_prob(i, t) {
+                        total_token_prob += prob;
+                        total_tokens += 1;
+                    }
+                }
+            }
 
             let cleaned_text = segment_text.trim();
             if !cleaned_text.is_empty() {
@@ -728,8 +728,8 @@ impl WhisperEngine {
         let final_result = result.trim().to_string();
         let cleaned_result = Self::clean_repetitive_text(&final_result);
 
-        let avg_confidence = if segment_count > 0 {
-            total_confidence / segment_count as f32
+        let avg_confidence = if total_tokens > 0 {
+            total_token_prob / total_tokens as f32
         } else {
             0.0
         };
@@ -805,22 +805,24 @@ impl WhisperEngine {
 
         let num_segments = state.full_n_segments()?;
         let mut result = String::new();
-        let mut total_confidence = 0.0f32;
-        let mut segment_count = 0;
+        let mut total_token_prob = 0.0f32;
+        let mut total_tokens = 0usize;
 
         for i in 0..num_segments {
             let segment_text = match state.full_get_segment_text_lossy(i) {
                 Ok(text) => text,
                 Err(_) => continue,
             };
-            let segment_length = segment_text.len() as f32;
-            let segment_confidence = if segment_length > 0.0 {
-                (segment_length / 100.0).min(0.9) + 0.1
-            } else {
-                0.1
-            };
-            total_confidence += segment_confidence;
-            segment_count += 1;
+
+            // Extract real per-token log probabilities for this segment
+            if let Ok(n_tokens) = state.full_n_tokens(i) {
+                for t in 0..n_tokens {
+                    if let Ok(prob) = state.full_get_token_prob(i, t) {
+                        total_token_prob += prob;
+                        total_tokens += 1;
+                    }
+                }
+            }
 
             let cleaned_text = segment_text.trim();
             if !cleaned_text.is_empty() {
@@ -834,8 +836,9 @@ impl WhisperEngine {
         let final_result = result.trim().to_string();
         let cleaned_result = Self::clean_repetitive_text(&final_result);
 
-        let avg_confidence = if segment_count > 0 {
-            total_confidence / segment_count as f32
+        // Average token probability — real confidence from the model
+        let avg_confidence = if total_tokens > 0 {
+            total_token_prob / total_tokens as f32
         } else {
             0.0
         };

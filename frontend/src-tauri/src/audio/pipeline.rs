@@ -33,19 +33,18 @@ struct AudioMixerRingBuffer {
 
 impl AudioMixerRingBuffer {
     fn new(sample_rate: u32) -> Self {
-        // Use 50ms windows for mixing
-        let window_ms = 600.0;
+        // 100ms mixing windows — low latency while still large enough for stable mixing.
+        // Previous 600ms created excessive latency before VAD could see any audio.
+        let window_ms = 100.0;
         let window_size_samples = (sample_rate as f32 * window_ms / 1000.0) as usize;
 
-        // CRITICAL FIX: Increase max buffer to 400ms for system audio stability
-        // System audio (especially Core Audio on macOS) can have significant jitter
-        // due to sample-by-sample streaming → batching → channel transmission
-        // Accounts for: RNNoise buffering + Core Audio jitter + processing delays
-        let max_buffer_size = window_size_samples * 8;  // 400ms (was 200ms)
+        // Max buffer = 12x window (1200ms) absorbs system audio jitter from
+        // Core Audio/WASAPI batching, RNNoise buffering, and Bluetooth devices.
+        let max_buffer_size = window_size_samples * 12;
 
         info!("🔊 Ring buffer initialized: window={}ms ({} samples), max={}ms ({} samples)",
               window_ms, window_size_samples,
-              window_ms * 8.0, max_buffer_size);
+              window_ms * 12.0, max_buffer_size);
 
         Self {
             mic_buffer: VecDeque::with_capacity(max_buffer_size),
@@ -860,14 +859,28 @@ impl AudioPipeline {
 
                             match self.vad_processor.process_audio(&mixed_with_gain) {
                                 Ok(speech_segments) => {
-                                    for segment in speech_segments {
-                                        if segment.samples.len() < 8000 {
-                                            // Minimum 0.5s at 16kHz — captures short responses (Yes/No/OK)
-                                            // while VAD's 250ms min_speech_time already filters noise bursts
-                                            debug!("⏭️ Dropping short VAD segment: {:.1}ms ({} samples < 8000)",
+                                    // Minimum sample count for Whisper (0.5s at 16kHz).
+                                    // Segments shorter than this are padded with silence rather
+                                    // than dropped, preserving brief utterances like "Yes"/"No".
+                                    // suppress_blank=true prevents Whisper from hallucinating on
+                                    // the silence portion.
+                                    const MIN_WHISPER_SAMPLES: usize = 8000;
+
+                                    for mut segment in speech_segments {
+                                        if segment.samples.len() < 4000 {
+                                            // Sub-250ms: too short even after VAD — likely a noise burst
+                                            debug!("⏭️ Dropping noise-length segment: {:.1}ms ({} samples)",
                                                    segment.end_timestamp_ms - segment.start_timestamp_ms,
                                                    segment.samples.len());
                                             continue;
+                                        }
+
+                                        if segment.samples.len() < MIN_WHISPER_SAMPLES {
+                                            // Pad with trailing silence to reach 0.5s
+                                            let pad_count = MIN_WHISPER_SAMPLES - segment.samples.len();
+                                            debug!("🔇 Padding short segment ({} samples) with {} silence samples",
+                                                   segment.samples.len(), pad_count);
+                                            segment.samples.resize(MIN_WHISPER_SAMPLES, 0.0);
                                         }
 
                                         // Split long segments at silence boundaries
