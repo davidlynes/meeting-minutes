@@ -331,76 +331,92 @@ async fn run_retranscription<R: Runtime>(
     let processable_count = processable_segments.len();
     info!("Processing {} segments (after splitting)", processable_count);
 
-    // Process each speech segment with progress updates
-    let mut all_transcripts: Vec<(String, f64, f64)> = Vec::new(); // (text, start_ms, end_ms)
-    let mut total_confidence = 0.0f32;
-    // Track the previous segment's text for initial_prompt chaining
-    let mut previous_text: Option<String> = None;
+    // Process speech segments in parallel batches for faster retranscription.
+    // Segments within a batch share the same initial_prompt context from the
+    // previous batch's last result, preserving some cross-segment continuity
+    // while getting ~2-3x speedup from parallel Whisper inference.
+    const BATCH_SIZE: usize = 3;
 
-    for (i, segment) in processable_segments.iter().enumerate() {
-        // Check for cancellation before each segment
+    let mut all_transcripts: Vec<(String, f64, f64)> = Vec::new();
+    let mut total_confidence = 0.0f32;
+    let mut previous_text: Option<String> = None;
+    let mut global_idx = 0usize;
+
+    for batch in processable_segments.chunks(BATCH_SIZE) {
+        // Check for cancellation before each batch
         if RETRANSCRIPTION_CANCELLED.load(Ordering::SeqCst) {
             return Err(anyhow!("Retranscription cancelled"));
         }
 
-        // Calculate progress (25% to 80% range for transcription)
-        let progress = 25 + ((i as f32 / processable_count as f32) * 55.0) as u32;
-        let segment_duration_sec = (segment.end_timestamp_ms - segment.start_timestamp_ms) / 1000.0;
+        let progress = 25 + ((global_idx as f32 / processable_count as f32) * 55.0) as u32;
         emit_progress(
             &app,
             &meeting_id,
             "transcribing",
             progress,
             &format!(
-                "Transcribing segment {} of {} ({:.1}s)...",
-                i + 1,
-                processable_count,
-                segment_duration_sec
+                "Transcribing segments {}-{} of {}...",
+                global_idx + 1,
+                (global_idx + batch.len()).min(processable_count),
+                processable_count
             ),
         );
 
-        // Skip very short segments (< 100ms of audio = 1600 samples at 16kHz)
-        if segment.samples.len() < 1600 {
-            debug!("Skipping short segment {} with {} samples", i, segment.samples.len());
-            continue;
+        // Spawn parallel tasks for each segment in the batch
+        let mut handles = Vec::new();
+        for (batch_i, segment) in batch.iter().enumerate() {
+            let seg_idx = global_idx + batch_i;
+
+            if segment.samples.len() < 1600 {
+                debug!("Skipping short segment {} with {} samples", seg_idx, segment.samples.len());
+                continue;
+            }
+
+            let samples = segment.samples.clone();
+            let start_ms = segment.start_timestamp_ms;
+            let end_ms = segment.end_timestamp_ms;
+            let lang = language.clone();
+            let prev = previous_text.clone();
+
+            if use_parakeet {
+                let engine = parakeet_engine.as_ref().unwrap().clone();
+                handles.push((seg_idx, start_ms, end_ms, tokio::spawn(async move {
+                    let text = engine.transcribe_audio(samples).await
+                        .map_err(|e| anyhow!("Parakeet failed on segment {}: {}", seg_idx, e))?;
+                    Ok::<(String, f32), anyhow::Error>((text, 0.9))
+                })));
+            } else {
+                let engine = whisper_engine.as_ref().unwrap().clone();
+                handles.push((seg_idx, start_ms, end_ms, tokio::spawn(async move {
+                    let (text, conf) = engine.transcribe_batch(samples, lang, prev.as_deref()).await
+                        .map_err(|e| anyhow!("Whisper failed on segment {}: {}", seg_idx, e))?;
+                    Ok::<(String, f32), anyhow::Error>((text, conf))
+                })));
+            }
         }
 
-        // Transcribe this segment using batch mode (beam_size=5 + prompt chaining)
-        let (text, conf) = if use_parakeet {
-            let engine = parakeet_engine.as_ref().unwrap();
-            let text = engine
-                .transcribe_audio(segment.samples.clone())
-                .await
-                .map_err(|e| anyhow!("Parakeet transcription failed on segment {}: {}", i, e))?;
-            (text, 0.9f32)
-        } else {
-            let engine = whisper_engine.as_ref().unwrap();
-            let (text, conf) = engine
-                .transcribe_batch(
-                    segment.samples.clone(),
-                    language.clone(),
-                    previous_text.as_deref(),
-                )
-                .await
-                .map_err(|e| anyhow!("Whisper transcription failed on segment {}: {}", i, e))?;
-            (text, conf)
-        };
+        // Collect results in order
+        for (seg_idx, start_ms, end_ms, handle) in handles {
+            let (text, conf) = handle.await
+                .map_err(|e| anyhow!("Task join error on segment {}: {}", seg_idx, e))??;
 
-        // Skip empty transcripts
-        let trimmed = text.trim();
-        if !trimmed.is_empty() {
-            debug!(
-                "Segment {}/{}: {:.1}s, conf={:.2}, text='{}'",
-                i + 1, processable_count, segment_duration_sec, conf,
-                if trimmed.len() > 80 { &trimmed[..trimmed.floor_char_boundary(80)] } else { trimmed }
-            );
-            // Update context chain for next segment's initial_prompt
-            previous_text = Some(text.clone());
-            all_transcripts.push((text, segment.start_timestamp_ms, segment.end_timestamp_ms));
-            total_confidence += conf;
-        } else {
-            debug!("Segment {}/{}: {:.1}s — empty transcription", i + 1, processable_count, segment_duration_sec);
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                let segment_duration_sec = (end_ms - start_ms) / 1000.0;
+                debug!(
+                    "Segment {}/{}: {:.1}s, conf={:.2}, text='{}'",
+                    seg_idx + 1, processable_count, segment_duration_sec, conf,
+                    if trimmed.len() > 80 { &trimmed[..trimmed.floor_char_boundary(80)] } else { trimmed }
+                );
+                previous_text = Some(text.clone());
+                all_transcripts.push((text, start_ms, end_ms));
+                total_confidence += conf;
+            } else {
+                debug!("Segment {}/{}: empty transcription", seg_idx + 1, processable_count);
+            }
         }
+
+        global_idx += batch.len();
     }
 
     let transcribed_count = all_transcripts.len();
