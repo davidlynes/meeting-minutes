@@ -14,6 +14,7 @@ use super::devices::AudioDevice;
 use super::recording_state::{AudioChunk, AudioError, RecordingState, DeviceType};
 use super::audio_processing::{audio_to_mono, LoudnessNormalizer, NoiseSuppressionProcessor, HighPassFilter};
 use super::vad::{ContinuousVadProcessor};
+use super::common::split_segment_at_silence;
 
 /// Thread-safe sample counter (replaces unsafe static mut)
 static RING_BUFFER_SAMPLE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -854,20 +855,40 @@ impl AudioPipeline {
                             let mixed_with_gain = mixed_clean;
 
                             // STEP 3: Send mixed audio for transcription (VAD + Whisper)
+                            // Whisper's internal window is 30s — segments longer than 25s
+                            // should be split at silence boundaries to avoid overflow.
+                            const MAX_SEGMENT_SAMPLES: usize = 25 * 16000; // 25s at 16kHz
+
                             match self.vad_processor.process_audio(&mixed_with_gain) {
                                 Ok(speech_segments) => {
                                     for segment in speech_segments {
-                                        let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
+                                        if segment.samples.len() < 16000 {
+                                            // Minimum 1s at 16kHz — very short segments produce hallucinations
+                                            debug!("⏭️ Dropping short VAD segment: {:.1}ms ({} samples < 16000)",
+                                                   segment.end_timestamp_ms - segment.start_timestamp_ms,
+                                                   segment.samples.len());
+                                            continue;
+                                        }
 
-                                        if segment.samples.len() >= 16000 {  // Minimum 1s at 16kHz — Whisper pads to 30s internally; very short segments produce hallucinations
+                                        // Split long segments at silence boundaries
+                                        let sub_segments = if segment.samples.len() > MAX_SEGMENT_SAMPLES {
+                                            info!("✂️ Splitting long VAD segment ({:.1}s) at silence boundaries",
+                                                  segment.samples.len() as f64 / 16000.0);
+                                            split_segment_at_silence(&segment, MAX_SEGMENT_SAMPLES)
+                                        } else {
+                                            vec![segment]
+                                        };
+
+                                        for sub in sub_segments {
+                                            let duration_ms = sub.end_timestamp_ms - sub.start_timestamp_ms;
                                             info!("📤 Sending VAD segment: {:.1}ms, {} samples",
-                                                  duration_ms, segment.samples.len());
+                                                  duration_ms, sub.samples.len());
 
                                             // Advanced logging: send VAD segment details
                                             if crate::device_registry::is_advanced_logging_enabled() {
                                                 let dur = duration_ms;
-                                                let sc = segment.samples.len();
-                                                let start_ts = segment.start_timestamp_ms;
+                                                let sc = sub.samples.len();
+                                                let start_ts = sub.start_timestamp_ms;
                                                 tokio::spawn(async move {
                                                     crate::analytics::advanced_logging::track_vad_segment(
                                                         dur, sc, start_ts,
@@ -876,9 +897,9 @@ impl AudioPipeline {
                                             }
 
                                             let transcription_chunk = AudioChunk {
-                                                data: segment.samples,
+                                                data: sub.samples,
                                                 sample_rate: 16000,
-                                                timestamp: segment.start_timestamp_ms / 1000.0,
+                                                timestamp: sub.start_timestamp_ms / 1000.0,
                                                 chunk_id: self.chunk_id_counter,
                                                 device_type: DeviceType::Microphone,  // Mixed audio
                                             };
@@ -888,9 +909,6 @@ impl AudioPipeline {
                                             } else {
                                                 self.chunk_id_counter += 1;
                                             }
-                                        } else {
-                                            debug!("⏭️ Dropping short VAD segment: {:.1}ms ({} samples < 800)",
-                                                   duration_ms, segment.samples.len());
                                         }
                                     }
                                 }
