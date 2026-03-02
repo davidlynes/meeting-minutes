@@ -39,6 +39,27 @@ def get_templates_collection():
     return client[db_name]["templates"]
 
 
+def get_users_collection():
+    """Get the users collection for authentication."""
+    client = get_mongo_client()
+    db_name = os.getenv("MONGODB_DATABASE", "iqcapture")
+    return client[db_name]["users"]
+
+
+def get_usage_events_collection():
+    """Get the usage_events collection for raw event storage."""
+    client = get_mongo_client()
+    db_name = os.getenv("MONGODB_DATABASE", "iqcapture")
+    return client[db_name]["usage_events"]
+
+
+def get_usage_summaries_collection():
+    """Get the usage_summaries collection for pre-aggregated rollups."""
+    client = get_mongo_client()
+    db_name = os.getenv("MONGODB_DATABASE", "iqcapture")
+    return client[db_name]["usage_summaries"]
+
+
 async def check_mongo_connection() -> bool:
     """Check if MongoDB is reachable by sending a ping.
 

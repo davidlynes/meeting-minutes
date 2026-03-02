@@ -318,6 +318,12 @@ impl RecordingManager {
         let recording_duration = self.state.get_active_recording_duration();
         info!("Recording duration before stop: {:?}s", recording_duration);
 
+        // Track recording minutes in usage buffer
+        if let Some(duration_secs) = recording_duration {
+            let minutes = duration_secs / 60.0;
+            crate::usage_buffer::push_event("recording_minutes", minutes, None);
+        }
+
         // Stop recording state first
         self.state.stop_recording();
 

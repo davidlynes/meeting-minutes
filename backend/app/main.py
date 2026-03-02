@@ -13,7 +13,12 @@ from transcript_processor import TranscriptProcessor
 from template_routes import router as template_router
 from release_routes import router as release_router
 from device_routes import router as device_router
+from cloud_config import router as config_router
 import time
+import os
+
+# Deployment mode: "local" for desktop-side, "cloud" for Azure-hosted
+DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "local")
 
 # Load environment variables
 load_dotenv()
@@ -53,14 +58,25 @@ app.add_middleware(
     max_age=3600,            # Cache preflight requests for 1 hour
 )
 
-# Register template API router (MongoDB-backed)
-app.include_router(template_router)
+# Config endpoint available in all modes
+app.include_router(config_router)
 
-# Register release API router (MongoDB-backed update checks)
-app.include_router(release_router)
-
-# Register device registry admin router (MongoDB-backed)
-app.include_router(device_router)
+if DEPLOYMENT_MODE == "cloud":
+    # Cloud mode: auth, usage, device, template routes only
+    from auth_routes import router as auth_router
+    from usage_routes import router as usage_router
+    app.include_router(auth_router)
+    app.include_router(usage_router)
+    app.include_router(device_router)
+    app.include_router(template_router)
+    app.include_router(release_router)
+    logger.info("Running in CLOUD mode — auth, usage, device, template, release routes active")
+else:
+    # Local mode: meeting/transcript/summary routes only (default)
+    app.include_router(template_router)
+    app.include_router(release_router)
+    app.include_router(device_router)
+    logger.info("Running in LOCAL mode — meeting, transcript, summary routes active")
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()

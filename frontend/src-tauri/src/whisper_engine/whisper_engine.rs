@@ -863,9 +863,19 @@ impl WhisperEngine {
             }
         }
 
+        // Track transcription minutes in usage buffer
+        if !cleaned_result.is_empty() {
+            let minutes = duration_seconds / 60.0;
+            let model = self.current_model.read().await;
+            let metadata = model.as_ref().map(|m| {
+                serde_json::json!({ "whisper_model": m })
+            });
+            crate::usage_buffer::push_event("transcription_minutes", minutes, metadata);
+        }
+
         Ok(cleaned_result)
     }
-    
+
     pub async fn get_models_directory(&self) -> PathBuf {
         self.models_dir.clone()
     }

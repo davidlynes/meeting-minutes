@@ -55,6 +55,8 @@ pub mod utils;
 pub mod mongodb_client;
 pub mod device_registry;
 pub mod updates;
+pub mod auth_store;
+pub mod usage_buffer;
 pub mod whisper_engine;
 
 use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
@@ -572,6 +574,9 @@ pub fn run() {
                 }
             });
 
+            // Initialize usage event buffer (loads any pending events from disk)
+            usage_buffer::initialize(&_app.handle());
+
             // Device registration — upsert into MongoDB `devices` collection
             // and start polling the `advanced_logs` flag
             let app_for_device_reg = _app.handle().clone();
@@ -808,6 +813,18 @@ pub fn run() {
             onboarding::complete_onboarding,
             // Update checker
             updates::update_checker::check_for_updates,
+            // Auth token storage commands
+            auth_store::auth_save_tokens,
+            auth_store::auth_get_access_token,
+            auth_store::auth_get_refresh_token,
+            auth_store::auth_clear_tokens,
+            auth_store::auth_save_user_id,
+            auth_store::auth_get_user_id,
+            // Usage buffer commands
+            usage_buffer::usage_track_event,
+            usage_buffer::usage_flush_events,
+            usage_buffer::usage_get_pending_count,
+            usage_buffer::usage_persist_buffer,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,
@@ -817,6 +834,12 @@ pub fn run() {
         .run(|_app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 log::info!("Application exiting, cleaning up resources...");
+
+                // Persist any buffered usage events to disk before exit
+                if let Err(e) = usage_buffer::usage_persist_buffer() {
+                    log::warn!("Failed to persist usage buffer on exit: {}", e);
+                }
+
                 tauri::async_runtime::block_on(async {
                     // Clean up database connection and checkpoint WAL
                     if let Some(app_state) = _app_handle.try_state::<state::AppState>() {

@@ -21,6 +21,7 @@ import { OnboardingFlow } from '@/components/onboarding'
 import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgressToast'
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 const sourceSans3 = Source_Sans_3({
   subsets: ['latin'],
@@ -101,6 +102,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
         {/* App-level providers (rarely change) */}
+        <AuthProvider>
         <AnalyticsProvider>
           <OnboardingProvider>
             <UpdateCheckProvider>
@@ -135,6 +137,7 @@ export default function RootLayout({
             </UpdateCheckProvider>
           </OnboardingProvider>
         </AnalyticsProvider>
+        </AuthProvider>
         <Toaster position="bottom-center" richColors closeButton />
       </body>
     </html>
