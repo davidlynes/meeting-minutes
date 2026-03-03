@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use anyhow::Result;
 use log::{debug, error, info, warn};
-use crate::{perf_debug, batch_audio_metric};
+use crate::batch_audio_metric;
 use super::batch_processor::AudioMetricsBatcher;
 use super::buffer_pool::AudioBufferPool;
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
@@ -14,6 +14,7 @@ use super::devices::AudioDevice;
 use super::recording_state::{AudioChunk, AudioError, RecordingState, DeviceType};
 use super::audio_processing::{audio_to_mono, LoudnessNormalizer, NoiseSuppressionProcessor, HighPassFilter};
 use super::vad::{ContinuousVadProcessor};
+use super::common::split_segment_at_silence;
 
 /// Thread-safe sample counter (replaces unsafe static mut)
 static RING_BUFFER_SAMPLE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -32,19 +33,18 @@ struct AudioMixerRingBuffer {
 
 impl AudioMixerRingBuffer {
     fn new(sample_rate: u32) -> Self {
-        // Use 50ms windows for mixing
-        let window_ms = 600.0;
+        // 100ms mixing windows — low latency while still large enough for stable mixing.
+        // Previous 600ms created excessive latency before VAD could see any audio.
+        let window_ms = 100.0;
         let window_size_samples = (sample_rate as f32 * window_ms / 1000.0) as usize;
 
-        // CRITICAL FIX: Increase max buffer to 400ms for system audio stability
-        // System audio (especially Core Audio on macOS) can have significant jitter
-        // due to sample-by-sample streaming → batching → channel transmission
-        // Accounts for: RNNoise buffering + Core Audio jitter + processing delays
-        let max_buffer_size = window_size_samples * 8;  // 400ms (was 200ms)
+        // Max buffer = 12x window (1200ms) absorbs system audio jitter from
+        // Core Audio/WASAPI batching, RNNoise buffering, and Bluetooth devices.
+        let max_buffer_size = window_size_samples * 12;
 
         info!("🔊 Ring buffer initialized: window={}ms ({} samples), max={}ms ({} samples)",
               window_ms, window_size_samples,
-              window_ms * 8.0, max_buffer_size);
+              window_ms * 12.0, max_buffer_size);
 
         Self {
             mic_buffer: VecDeque::with_capacity(max_buffer_size),
@@ -165,11 +165,10 @@ impl ProfessionalAudioMixer {
             let mic = mic_window.get(i).copied().unwrap_or(0.0);
             let sys = sys_window.get(i).copied().unwrap_or(0.0);
 
-            // Pre-scale system audio to 70% to leave headroom
+            // Pre-scale system audio to 70% to leave headroom for mic
             // This prevents constant soft scaling which can cause pumping artifacts
             // Mic is normalized to -23 LUFS (already optimal), system needs reduction
-            let sys_scaled = sys * 1.0;
-            let _mic_scaled = mic * 0.8;  // Reserved for future mic scaling
+            let sys_scaled = sys * 0.7;
 
             // Sum without ducking - mic stays at full volume, system slightly reduced
             let sum = mic + sys_scaled;
@@ -725,9 +724,10 @@ impl AudioPipeline {
         // Create VAD processor with balanced redemption time for speech accumulation
         // The VAD processor now handles 48kHz->16kHz resampling internally
         // This bridges natural pauses without excessive fragmentation
-        // For mac os core audio, 900ms, for windows 400ms seems good
+        // macOS: 800ms bridges most intra-sentence pauses without excessive latency
+        // Windows: 1000ms balances WASAPI's chunkier delivery vs live transcription latency
 
-        let redemption_time = if cfg!(target_os = "macos") { 400 } else { 400 };
+        let redemption_time = if cfg!(target_os = "macos") { 800 } else { 1000 };
 
         let vad_processor = match ContinuousVadProcessor::new(sample_rate, redemption_time) {
             Ok(processor) => {
@@ -853,20 +853,55 @@ impl AudioPipeline {
                             let mixed_with_gain = mixed_clean;
 
                             // STEP 3: Send mixed audio for transcription (VAD + Whisper)
+                            // Whisper's internal window is 30s — segments longer than 25s
+                            // should be split at silence boundaries to avoid overflow.
+                            const MAX_SEGMENT_SAMPLES: usize = 25 * 16000; // 25s at 16kHz
+
                             match self.vad_processor.process_audio(&mixed_with_gain) {
                                 Ok(speech_segments) => {
-                                    for segment in speech_segments {
-                                        let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
+                                    // Minimum sample count for Whisper (0.5s at 16kHz).
+                                    // Segments shorter than this are padded with silence rather
+                                    // than dropped, preserving brief utterances like "Yes"/"No".
+                                    // suppress_blank=true prevents Whisper from hallucinating on
+                                    // the silence portion.
+                                    const MIN_WHISPER_SAMPLES: usize = 8000;
 
-                                        if segment.samples.len() >= 800 {  // Minimum 50ms at 16kHz - matches Parakeet capability
+                                    for mut segment in speech_segments {
+                                        if segment.samples.len() < 4000 {
+                                            // Sub-250ms: too short even after VAD — likely a noise burst
+                                            debug!("⏭️ Dropping noise-length segment: {:.1}ms ({} samples)",
+                                                   segment.end_timestamp_ms - segment.start_timestamp_ms,
+                                                   segment.samples.len());
+                                            continue;
+                                        }
+
+                                        if segment.samples.len() < MIN_WHISPER_SAMPLES {
+                                            // Pad with trailing silence to reach 0.5s
+                                            let pad_count = MIN_WHISPER_SAMPLES - segment.samples.len();
+                                            debug!("🔇 Padding short segment ({} samples) with {} silence samples",
+                                                   segment.samples.len(), pad_count);
+                                            segment.samples.resize(MIN_WHISPER_SAMPLES, 0.0);
+                                        }
+
+                                        // Split long segments at silence boundaries
+                                        let sub_segments = if segment.samples.len() > MAX_SEGMENT_SAMPLES {
+                                            info!("✂️ Splitting long VAD segment ({:.1}s) at silence boundaries",
+                                                  segment.samples.len() as f64 / 16000.0);
+                                            split_segment_at_silence(&segment, MAX_SEGMENT_SAMPLES)
+                                        } else {
+                                            vec![segment]
+                                        };
+
+                                        for sub in sub_segments {
+                                            let duration_ms = sub.end_timestamp_ms - sub.start_timestamp_ms;
                                             info!("📤 Sending VAD segment: {:.1}ms, {} samples",
-                                                  duration_ms, segment.samples.len());
+                                                  duration_ms, sub.samples.len());
 
                                             // Advanced logging: send VAD segment details
                                             if crate::device_registry::is_advanced_logging_enabled() {
                                                 let dur = duration_ms;
-                                                let sc = segment.samples.len();
-                                                let start_ts = segment.start_timestamp_ms;
+                                                let sc = sub.samples.len();
+                                                let start_ts = sub.start_timestamp_ms;
                                                 tokio::spawn(async move {
                                                     crate::analytics::advanced_logging::track_vad_segment(
                                                         dur, sc, start_ts,
@@ -875,9 +910,9 @@ impl AudioPipeline {
                                             }
 
                                             let transcription_chunk = AudioChunk {
-                                                data: segment.samples,
+                                                data: sub.samples,
                                                 sample_rate: 16000,
-                                                timestamp: segment.start_timestamp_ms / 1000.0,
+                                                timestamp: sub.start_timestamp_ms / 1000.0,
                                                 chunk_id: self.chunk_id_counter,
                                                 device_type: DeviceType::Microphone,  // Mixed audio
                                             };
@@ -887,9 +922,6 @@ impl AudioPipeline {
                                             } else {
                                                 self.chunk_id_counter += 1;
                                             }
-                                        } else {
-                                            debug!("⏭️ Dropping short VAD segment: {:.1}ms ({} samples < 800)",
-                                                   duration_ms, segment.samples.len());
                                         }
                                     }
                                 }
@@ -940,8 +972,9 @@ impl AudioPipeline {
                 for segment in final_segments {
                     let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
 
-                    // Send segments >= 50ms (800 samples at 16kHz) - matches main pipeline filter
-                    if segment.samples.len() >= 800 {
+                    // Final flush: use a low threshold (100ms / 1600 samples) to avoid
+                    // dropping the user's last words at end of recording
+                    if segment.samples.len() >= 1600 {
                         info!("📤 Sending final VAD segment to Whisper: {:.1}ms duration, {} samples",
                               duration_ms, segment.samples.len());
 
@@ -959,7 +992,7 @@ impl AudioPipeline {
                             self.chunk_id_counter += 1;
                         }
                     } else {
-                        info!("⏭️ Skipping short final segment: {:.1}ms ({} samples < 800)",
+                        info!("⏭️ Skipping short final segment: {:.1}ms ({} samples < 1600)",
                               duration_ms, segment.samples.len());
                     }
                 }

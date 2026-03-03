@@ -38,6 +38,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod notifications;
@@ -374,16 +375,6 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
     }
 }
 
-// Language preference commands
-#[tauri::command]
-async fn get_language_preference() -> Result<String, String> {
-    let language = LANGUAGE_PREFERENCE
-        .lock()
-        .map_err(|e| format!("Failed to get language preference: {}", e))?;
-    log_info!("Retrieved language preference: {}", &*language);
-    Ok(language.clone())
-}
-
 #[tauri::command]
 async fn set_language_preference(language: String) -> Result<(), String> {
     let mut lang_pref = LANGUAGE_PREFERENCE
@@ -682,8 +673,6 @@ pub fn run() {
             audio::recording_commands::attempt_device_reconnect,
             // Playback device detection (Bluetooth warning)
             audio::recording_commands::get_active_audio_output,
-            // Audio import command
-            audio::import::import_audio_file,
             // Audio recovery commands (for transcript recovery feature)
             audio::incremental_saver::recover_audio_from_checkpoints,
             audio::incremental_saver::cleanup_checkpoints,
@@ -761,7 +750,6 @@ pub fn run() {
             audio::recording_preferences::set_audio_backend,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
-            get_language_preference,
             set_language_preference,
             // Notification system commands
             notifications::commands::get_notification_settings,
@@ -811,6 +799,16 @@ pub fn run() {
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,
+            // Retranscription commands
+            audio::retranscription::start_retranscription_command,
+            audio::retranscription::cancel_retranscription_command,
+            audio::retranscription::is_retranscription_in_progress_command,
+            // Import audio commands
+            audio::import::select_and_validate_audio_command,
+            audio::import::validate_audio_file_command,
+            audio::import::start_import_audio_command,
+            audio::import::cancel_import_command,
+            audio::import::is_import_in_progress_command,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

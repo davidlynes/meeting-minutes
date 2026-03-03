@@ -21,15 +21,19 @@ MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "iqcapture")
 
 RELEASE = {
-    "version": "0.2.1",
+    "version": "0.3.1",
     "release_date": datetime.now(timezone.utc),
-    "download_url": "https://github.com/Zackriya-Solutions/meeting-minutes/releases",
-    "release_notes": "Initial IQ:capture release with rebranding, MongoDB template sync, and improved model downloads.",
+    "download_url": "https://github.com/davidlynes/meeting-minutes/releases",
+    "release_notes": "Merged upstream v0.3.0 with critical transcription fixes and tuned accuracy parameters.",
     "whats_new": [
-        "Rebranded to IQ:capture",
-        "Templates now sync from MongoDB for centralised management",
-        "Fixed model download URLs (Gemma and Parakeet)",
-        "Removed GitHub references from the UI",
+        "Fixed ~99% VAD miss rate on long recordings (sinc resampler from upstream)",
+        "Added audio import and retranscription feature (re-process with different models)",
+        "Tuned VAD redemption time to 2000ms on Windows — fixes intermittent voice detection",
+        "Added Whisper initial_prompt for meeting-style output with proper punctuation",
+        "Enabled RNNoise neural network noise reduction (10-15 dB improvement)",
+        "Lowered speech detection thresholds to catch quieter speakers",
+        "Increased minimum segment size to 1s to prevent Whisper hallucinations",
+        "Default language pinned to English to avoid auto-detection errors",
     ],
     "is_latest": True,
     "min_version": None,
