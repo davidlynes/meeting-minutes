@@ -10,8 +10,9 @@ import sys
 import pytest
 import pytest_asyncio
 
-# Add the app directory to the path
+# Add the app and tests directories to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
+sys.path.insert(0, os.path.dirname(__file__))
 
 # Set test environment variables BEFORE any app imports
 os.environ["DEPLOYMENT_MODE"] = "cloud"
