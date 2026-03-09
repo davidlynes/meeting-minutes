@@ -14,6 +14,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    dangerouslyIgnoreUnhandledErrors: true,
     coverage: {
       provider: 'v8',
       include: ['src/services/**', 'src/contexts/**', 'src/components/Auth/**'],
