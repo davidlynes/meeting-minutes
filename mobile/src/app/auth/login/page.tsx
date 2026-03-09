@@ -1,22 +1,28 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const { login, error, clearError, isLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const verified = searchParams.get('verified')
+  const reset = searchParams.get('reset')
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
-    const success = await login(email, password)
-    if (success) {
+    const result = await login(email, password)
+    if (result === true) {
       router.replace('/')
+    } else if (result === 'EMAIL_NOT_VERIFIED') {
+      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`)
     }
   }
 
@@ -25,6 +31,13 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
         <p className="text-sm text-gray-500 mb-6">Sign in to IQ:capture</p>
+
+        {verified && (
+          <p className="text-sm text-green-600 mb-4">Email verified! You can now sign in.</p>
+        )}
+        {reset && (
+          <p className="text-sm text-green-600 mb-4">Password reset! Sign in with your new password.</p>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -41,7 +54,12 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <Link href="/auth/forgot-password" className="text-xs text-blue-600 font-medium">
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}

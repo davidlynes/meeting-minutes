@@ -5,13 +5,16 @@ import { UserProfile } from '@/types'
 import * as authService from '@/services/authService'
 import { getDeviceId, getPlatform } from '@/services/deviceService'
 
+type LoginResult = true | false | 'EMAIL_NOT_VERIFIED'
+type RegisterResult = true | false
+
 interface AuthContextValue {
   user: UserProfile | null
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
-  login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string, displayName?: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<LoginResult>
+  register: (email: string, password: string, displayName?: string) => Promise<RegisterResult>
   logout: () => Promise<void>
   clearError: () => void
 }
@@ -84,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [scheduleRefresh])
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     setError(null)
     setIsLoading(true)
     try {
@@ -95,6 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       scheduleRefresh()
       return true
     } catch (e: any) {
+      if (e.code === 'EMAIL_NOT_VERIFIED') {
+        setError('Please verify your email before signing in.')
+        return 'EMAIL_NOT_VERIFIED'
+      }
       setError(e.message || 'Login failed')
       return false
     } finally {
@@ -106,15 +113,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     displayName?: string,
-  ): Promise<boolean> => {
+  ): Promise<RegisterResult> => {
     setError(null)
     setIsLoading(true)
     try {
       const deviceId = await getDeviceId()
       const platform = getPlatform()
-      const result = await authService.register(email, password, deviceId, displayName, platform)
-      setUser(result.user)
-      scheduleRefresh()
+      await authService.register(email, password, deviceId, displayName, platform)
+      // Don't set user — email verification required first
       return true
     } catch (e: any) {
       setError(e.message || 'Registration failed')
@@ -122,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [scheduleRefresh])
+  }, [])
 
   const logout = useCallback(async () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)

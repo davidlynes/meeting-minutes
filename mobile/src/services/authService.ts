@@ -142,7 +142,14 @@ export async function login(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Login failed' }))
-    throw new Error(err.detail || 'Login failed')
+    const detail = err.detail || 'Login failed'
+    if (detail === 'EMAIL_NOT_VERIFIED') {
+      const error = new Error(detail)
+      ;(error as any).code = 'EMAIL_NOT_VERIFIED'
+      ;(error as any).email = email
+      throw error
+    }
+    throw new Error(detail)
   }
 
   const data: AuthResponse = await res.json()
@@ -203,4 +210,60 @@ export async function linkDevice(deviceId: string, platform: string): Promise<vo
     body: JSON.stringify({ device_id: deviceId, platform }),
   })
   if (!res.ok) throw new Error('Failed to link device')
+}
+
+// ── Forgot / Reset Password ──
+
+export async function forgotPassword(email: string): Promise<void> {
+  const baseUrl = getBaseUrl()
+  const res = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }))
+    throw new Error(err.detail || 'Request failed')
+  }
+}
+
+export async function resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+  const baseUrl = getBaseUrl()
+  const res = await fetch(`${baseUrl}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, new_password: newPassword }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Reset failed' }))
+    throw new Error(err.detail || 'Reset failed')
+  }
+}
+
+// ── Email Verification ──
+
+export async function verifyEmail(email: string, code: string): Promise<void> {
+  const baseUrl = getBaseUrl()
+  const res = await fetch(`${baseUrl}/api/auth/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Verification failed' }))
+    throw new Error(err.detail || 'Verification failed')
+  }
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  const baseUrl = getBaseUrl()
+  const res = await fetch(`${baseUrl}/api/auth/resend-verification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }))
+    throw new Error(err.detail || 'Request failed')
+  }
 }

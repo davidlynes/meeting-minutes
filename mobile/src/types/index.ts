@@ -86,6 +86,8 @@ export interface UserProfile {
   email: string
   display_name: string | null
   devices: DeviceSummary[]
+  account_level?: string
+  email_verified?: boolean
 }
 
 export interface DeviceSummary {
