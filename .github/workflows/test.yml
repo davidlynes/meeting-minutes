@@ -78,6 +78,12 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      - name: Verify imports
+        working-directory: backend
+        run: |
+          python -c "import sys; sys.path.insert(0, 'app'); import main; print('main.py OK')"
+          python -c "import sys; sys.path.insert(0, 'app'); import transcript_processor; print('transcript_processor OK')"
+
       - name: Run tests
         working-directory: backend
-        run: pytest tests/ -v
+        run: pytest tests/ -v --tb=long 2>&1 || (echo "--- pytest collect-only ---" && pytest tests/ --collect-only 2>&1; exit 1)
