@@ -86,4 +86,11 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: pytest tests/ -v --tb=long 2>&1 || (echo "--- pytest collect-only ---" && pytest tests/ --collect-only 2>&1; exit 1)
+        run: |
+          pytest tests/ -v --tb=long 2>&1 | tee test_output.txt || true
+          echo "## Backend Test Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -100 test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Re-run to get the real exit code
+          pytest tests/ -v --tb=long
