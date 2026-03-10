@@ -1,10 +1,11 @@
 """
-Shared test fixtures for auth and usage tests.
+Shared test fixtures for backend tests.
 
 Requires a local MongoDB instance on localhost:27017.
 Uses a dedicated test database that is cleaned between tests.
 """
 
+import asyncio
 import os
 import sys
 import pytest
@@ -22,6 +23,19 @@ os.environ["MONGODB_DATABASE"] = "iqcapture_test"
 os.environ["SENDGRID_API_KEY"] = ""  # Skip actual email sending in tests
 
 
+# ── Session-scoped event loop ────────────────────────────────────────
+# Motor's AsyncIOMotorClient binds to the event loop on first use.
+# With per-function loops (the default), the singleton client becomes
+# stale after the first test closes its loop.  A single session-wide
+# loop avoids the problem entirely.
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+# ── Fixtures ─────────────────────────────────────────────────────────
 @pytest_asyncio.fixture
 async def client(cleanup_db):
     """Create an async test client for the FastAPI app.
