@@ -69,4 +69,14 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: pytest tests/ -v
+        run: |
+          pytest tests/ -v --tb=short 2>&1 | tee test-output.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Dump test output to summary
+        if: failure()
+        working-directory: backend
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -200 test-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
