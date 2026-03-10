@@ -1,9 +1,5 @@
 """Tests for cloud configuration endpoint."""
 
-import pytest
-
-pytestmark = pytest.mark.asyncio
-
 
 async def test_get_config_returns_expected_keys(client):
     res = await client.get("/api/config")

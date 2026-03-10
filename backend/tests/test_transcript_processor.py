@@ -8,8 +8,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 from transcript_processor import TranscriptProcessor, SummaryResponse, Block, Section, MeetingNotes, People
 
-pytestmark = pytest.mark.asyncio
-
 
 # ── SummaryResponse model tests ──────────────────────────────────────
 

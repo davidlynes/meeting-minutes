@@ -1,9 +1,6 @@
 """Tests for template CRUD endpoints."""
 
-import pytest
 from datetime import datetime
-
-pytestmark = pytest.mark.asyncio
 
 
 def _template_payload(template_id="tpl-1", client_id="default", name="Standard Template"):

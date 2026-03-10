@@ -1,9 +1,5 @@
 """Tests for release endpoints."""
 
-import pytest
-
-pytestmark = pytest.mark.asyncio
-
 
 def _release_payload(version="1.0.0", is_latest=True, **kwargs):
     data = {

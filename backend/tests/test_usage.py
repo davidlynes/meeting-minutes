@@ -1,9 +1,6 @@
 """Tests for usage event ingestion and deduplication."""
 
-import pytest
 from helpers import _register_payload
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _get_auth_header(client) -> dict:

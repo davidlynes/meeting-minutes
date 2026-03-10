@@ -1,9 +1,6 @@
 """Tests for device management endpoints."""
 
-import pytest
 from datetime import datetime, timezone
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _insert_device(user_id="dev-user-1", advanced_logs=False):

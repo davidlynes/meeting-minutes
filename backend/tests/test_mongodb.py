@@ -1,22 +1,10 @@
 """Tests for MongoDB connection management."""
 
 import pytest
-import pytest_asyncio
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
-
-pytestmark = pytest.mark.asyncio
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def reset_mongo_client():
-    """Reset the MongoDB singleton so each test gets a client bound to its event loop."""
-    import mongodb
-    mongodb._client = None
-    yield
-    mongodb._client = None
 
 
 # ── get_mongo_client ─────────────────────────────────────────────────

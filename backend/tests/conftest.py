@@ -38,16 +38,10 @@ async def client(cleanup_db):
 
 @pytest_asyncio.fixture
 async def cleanup_db():
-    """Clean the test database before and after each test.
+    """Clean the test database before and after each test."""
+    from mongodb import get_mongo_client
 
-    Also resets the MongoDB singleton client so each test gets a fresh
-    client bound to the current event loop (motor binds to the loop on
-    first use, but pytest-asyncio creates a new loop per test).
-    """
-    import mongodb
-    mongodb._client = None  # Reset singleton so it binds to this test's event loop
-
-    db = mongodb.get_mongo_client()["iqcapture_test"]
+    db = get_mongo_client()["iqcapture_test"]
     collection_names = await db.list_collection_names()
     for name in collection_names:
         await db[name].delete_many({})
@@ -55,7 +49,6 @@ async def cleanup_db():
     collection_names = await db.list_collection_names()
     for name in collection_names:
         await db[name].delete_many({})
-    mongodb._client = None  # Clean up for next test
 
 
 def _register_payload(email="test@example.com", password="TestPass1", device_id="device-001"):

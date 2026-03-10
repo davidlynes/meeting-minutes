@@ -1,9 +1,6 @@
 """Tests for login rate limiting."""
 
-import pytest
 from helpers import _register_payload, _login_payload
-
-pytestmark = pytest.mark.asyncio
 
 
 async def test_lockout_after_5_failures(client):

@@ -1,9 +1,6 @@
 """Tests for meeting management endpoints in main.py."""
 
-import pytest
 import time
-
-pytestmark = pytest.mark.asyncio
 
 
 # ── Helper ───────────────────────────────────────────────────────────

@@ -21,8 +21,6 @@ from auth_middleware import (
 )
 from fastapi import HTTPException
 
-pytestmark = pytest.mark.asyncio
-
 
 # ── create_access_token ─────────────────────────────────────────────
 

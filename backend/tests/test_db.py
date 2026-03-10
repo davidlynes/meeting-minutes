@@ -9,8 +9,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 from db import DatabaseManager
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 def db_manager(tmp_path):
