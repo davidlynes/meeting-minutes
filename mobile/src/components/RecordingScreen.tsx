@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useRecording } from '@/contexts/RecordingContext'
 import { useQuota } from '@/hooks/useQuota'
+import { useHeader } from '@/contexts/HeaderContext'
 import { Mic, Square, Pause, Play, AlertCircle } from 'lucide-react'
 
 export default function RecordingScreen() {
@@ -12,6 +13,7 @@ export default function RecordingScreen() {
   const { quota, hasQuota } = useQuota()
   const [meetingTitle, setMeetingTitle] = useState('')
   const [error, setError] = useState<string | null>(null)
+  useHeader({ title: 'Record' })
 
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600)
