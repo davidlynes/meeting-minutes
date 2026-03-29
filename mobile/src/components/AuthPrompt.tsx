@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import Link from 'next/link'
 
 export default function AuthPrompt() {
   return (
@@ -15,21 +14,19 @@ export default function AuthPrompt() {
       <p className="text-sm text-iq-medium mb-6">
         Sign in to record and transcribe your meetings.
       </p>
-      <div className="flex gap-3">
-        <Link
-          href="/auth/login"
-          prefetch={false}
-          className="btn-iq-primary no-underline inline-block"
+      <div className="flex flex-col gap-3 w-full max-w-xs">
+        <a
+          href="/auth/login/"
+          className="btn-iq-primary no-underline text-center block"
         >
           Sign In
-        </Link>
-        <Link
-          href="/auth/register"
-          prefetch={false}
-          className="btn-iq-outline no-underline inline-block"
+        </a>
+        <a
+          href="/auth/register/"
+          className="btn-iq-outline no-underline text-center block"
         >
           Create Account
-        </Link>
+        </a>
       </div>
     </div>
   )
