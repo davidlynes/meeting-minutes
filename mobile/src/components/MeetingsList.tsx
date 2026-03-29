@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { meetingRepository } from '@/services/meetingRepository'
 import { useSync } from '@/contexts/SyncContext'
+import { useHeader } from '@/contexts/HeaderContext'
 import { Meeting } from '@/types'
 import MeetingCard from './MeetingCard'
 import NetworkBanner from './NetworkBanner'
@@ -25,14 +26,22 @@ export default function MeetingsList() {
     }
   }, [])
 
+  useHeader({
+    title: 'Meetings',
+    rightContent: (
+      <button
+        onClick={async () => { await forceSync(); await loadMeetings() }}
+        disabled={isSyncing}
+        className="text-sm text-white/80 font-medium disabled:opacity-50"
+      >
+        {isSyncing ? 'Syncing...' : 'Refresh'}
+      </button>
+    ),
+  })
+
   useEffect(() => {
     loadMeetings()
   }, [loadMeetings])
-
-  const handleRefresh = async () => {
-    await forceSync()
-    await loadMeetings()
-  }
 
   if (loading) {
     return (
@@ -45,20 +54,6 @@ export default function MeetingsList() {
   return (
     <div className="flex flex-col h-full">
       <NetworkBanner />
-
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-iq-dark">Meetings</h1>
-          <button
-            onClick={handleRefresh}
-            disabled={isSyncing}
-            className="text-sm text-iq-blue font-medium disabled:opacity-50"
-          >
-            {isSyncing ? 'Syncing...' : 'Refresh'}
-          </button>
-        </div>
-      </div>
 
       {/* Meeting list */}
       {meetings.length === 0 ? (
