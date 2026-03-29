@@ -1,8 +1,12 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 
-export default function AuthPrompt() {
+interface AuthPromptProps {
+  onNavigate?: (page: 'login' | 'register') => void
+}
+
+export default function AuthPrompt({ onNavigate }: AuthPromptProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 text-center">
       <div className="w-16 h-16 bg-iq-blue/10 rounded-full flex items-center justify-center mb-4">
@@ -15,18 +19,18 @@ export default function AuthPrompt() {
         Sign in to record and transcribe your meetings.
       </p>
       <div className="flex flex-col gap-3 w-full max-w-xs">
-        <a
-          href="/auth/login/"
-          className="btn-iq-primary no-underline text-center block"
+        <button
+          onClick={() => onNavigate?.('login')}
+          className="btn-iq-primary w-full"
         >
           Sign In
-        </a>
-        <a
-          href="/auth/register/"
-          className="btn-iq-outline no-underline text-center block"
+        </button>
+        <button
+          onClick={() => onNavigate?.('register')}
+          className="btn-iq-outline w-full"
         >
           Create Account
-        </a>
+        </button>
       </div>
     </div>
   )

@@ -29,6 +29,10 @@
       "static/chunks/678.684bbcf0bcaf2315.js"
     ]
   },
+  "app/layout.tsx -> @/services/authService": {
+    "id": 4613,
+    "files": []
+  },
   "services/biometricAuth.ts -> @aparajita/capacitor-biometric-auth": {
     "id": 2498,
     "files": [
