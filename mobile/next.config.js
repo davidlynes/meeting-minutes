@@ -16,6 +16,12 @@ const nextConfig = {
         os: false,
       }
     }
+    // Optional native Capacitor plugins — not available in browser dev mode
+    config.externals = [
+      ...(config.externals || []),
+      '@capacitor-community/secure-storage',
+      '@aparajita/capacitor-biometric-auth',
+    ]
     return config
   },
 }
