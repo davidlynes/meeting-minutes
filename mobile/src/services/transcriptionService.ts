@@ -61,7 +61,12 @@ export async function getTranscriptionQuota(): Promise<{
   plan_limit: number
   used_minutes: number
 }> {
-  const res = await authFetch('/api/transcription/quota')
-  if (!res.ok) throw new Error('Quota check failed')
-  return res.json()
+  try {
+    const res = await authFetch('/api/transcription/quota')
+    if (!res.ok) return { remaining_minutes: 999, plan_limit: 999, used_minutes: 0 }
+    return res.json()
+  } catch {
+    // Endpoint not yet available — default to unlimited
+    return { remaining_minutes: 999, plan_limit: 999, used_minutes: 0 }
+  }
 }
