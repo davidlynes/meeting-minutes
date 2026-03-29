@@ -1,0 +1,16 @@
+{
+  "name": "IQ:capture",
+  "short_name": "IQ:capture",
+  "description": "Meeting Intelligence — Record, transcribe, and summarise meetings",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2276aa",
+  "theme_color": "#2b92d0",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import { Toaster } from 'sonner'
 import TabBar from '@/components/TabBar'
 import AppHeader from '@/components/AppHeader'
 import AuthPrompt from '@/components/AuthPrompt'
+import SplashScreen from '@/components/SplashScreen'
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -30,12 +31,7 @@ function AuthGatedApp({ children }: { children: React.ReactNode }) {
   const isAuthPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/auth')
 
   if (isLoading) {
-    return (
-      <main className="flex flex-col items-center justify-center h-screen bg-iq-light">
-        <div className="w-8 h-8 border-4 border-iq-blue border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-iq-medium mt-4">Loading...</p>
-      </main>
-    )
+    return <SplashScreen />
   }
 
   if (!isAuthenticated && !isAuthPage) {
@@ -104,6 +100,13 @@ export default function RootLayout({
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
         />
+        <meta name="theme-color" content="#2b92d0" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="IQ:capture" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`${poppins.variable} font-sans antialiased bg-iq-light text-iq-dark`}>
         <AuthProvider>
