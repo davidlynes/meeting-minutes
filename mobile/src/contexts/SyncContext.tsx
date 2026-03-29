@@ -35,24 +35,31 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     initializeDatabase().catch(console.warn)
   }, [])
 
-  // Network status — use browser events + health check for localhost dev
+  // Network status — ping API health endpoint directly
   useEffect(() => {
+    let mounted = true
     const checkOnline = async () => {
-      if (!navigator.onLine) { setIsOnline(false); return }
-      // Verify with actual API health check (navigator.onLine is unreliable on localhost)
       try {
-        const res = await fetch(`${config.apiUrl}/health`, { signal: AbortSignal.timeout(3000) }).catch(() => null)
-        setIsOnline(res?.ok ?? navigator.onLine)
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 3000)
+        const res = await fetch(`${config.apiUrl}/health`, { signal: controller.signal })
+        clearTimeout(timeout)
+        if (mounted) setIsOnline(res.ok)
       } catch {
-        setIsOnline(navigator.onLine)
+        if (mounted) setIsOnline(false)
       }
     }
-    const handleOnline = () => { setIsOnline(true); checkOnline() }
-    const handleOffline = () => setIsOnline(false)
+    // Check immediately and every 30 seconds
     checkOnline()
+    const interval = setInterval(checkOnline, 30_000)
+    // Also listen for browser events as hints
+    const handleOnline = () => checkOnline()
+    const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
+      mounted = false
+      clearInterval(interval)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
