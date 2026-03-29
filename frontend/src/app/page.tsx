@@ -16,6 +16,7 @@ import { useModalState } from '@/hooks/useModalState';
 // useRecordingStateSync removed — redundant 1s polling; RecordingStateContext handles sync at 500ms
 import { useRecordingStart } from '@/hooks/useRecordingStart';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
+import { useAudioWarnings } from '@/hooks/useAudioWarnings';
 import { useTranscriptRecovery } from '@/hooks/useTranscriptRecovery';
 import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
@@ -30,7 +31,7 @@ export default function Home() {
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   // Use contexts for state management
-  const { meetingTitle } = useTranscripts();
+  const { meetingTitle, transcripts } = useTranscripts();
   const { transcriptModelConfig, selectedDevices } = useConfig();
   const recordingState = useRecordingState();
 
@@ -41,6 +42,9 @@ export default function Home() {
   const { hasMicrophone } = usePermissionCheck();
   const { setIsMeetingActive, isCollapsed: sidebarCollapsed, refetchMeetings } = useSidebar();
   const { modals, messages, showModal, hideModal } = useModalState(transcriptModelConfig);
+  // Audio detection warnings (no audio, no speech, single voice)
+  useAudioWarnings({ status, transcripts });
+
   // Recording disabled state — sync polling now handled solely by RecordingStateContext (500ms)
   const [isRecordingDisabled, setIsRecordingDisabled] = useState(false);
   const { handleRecordingStart } = useRecordingStart(isRecording, setIsRecordingState, showModal);
