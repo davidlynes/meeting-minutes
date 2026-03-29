@@ -11,9 +11,9 @@ export default function AuthPrompt() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       </div>
-      <h2 className="text-xl font-bold text-iq-dark mb-2">Sign in to get started</h2>
+      <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
       <p className="text-sm text-iq-medium mb-6">
-        Create an account or sign in to record and transcribe your meetings.
+        Sign in to record and transcribe your meetings.
       </p>
       <div className="flex gap-3">
         <Link

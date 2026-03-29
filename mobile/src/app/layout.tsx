@@ -13,6 +13,7 @@ import { initNotifications } from '@/services/pushNotifications'
 import { registerDeepLinkHandler, parseDeepLink } from '@/services/deepLinking'
 import { Toaster } from 'sonner'
 import TabBar from '@/components/TabBar'
+import AppHeader from '@/components/AppHeader'
 import AuthPrompt from '@/components/AuthPrompt'
 
 const poppins = Poppins({
@@ -51,6 +52,7 @@ function AuthGatedApp({ children }: { children: React.ReactNode }) {
     <SyncProvider>
       <RecordingProvider>
         <main className="flex flex-col h-screen">
+          <AppHeader />
           <div className="flex-1 overflow-y-auto pb-16">
             {children}
           </div>

@@ -27,8 +27,8 @@ export default function RegisterPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-6 bg-iq-light">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-iq-dark mb-1">Create account</h1>
-        <p className="text-sm text-iq-medium mb-6">Get started with IQ:capture</p>
+        <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
+        <p className="text-sm text-iq-medium mb-6">Create your account to get started</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
