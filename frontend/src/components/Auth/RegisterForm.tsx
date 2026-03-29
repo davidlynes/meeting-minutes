@@ -15,6 +15,7 @@ export function RegisterForm({ deviceId, onSwitchToLogin, onNeedsVerification, o
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,7 +23,7 @@ export function RegisterForm({ deviceId, onSwitchToLogin, onNeedsVerification, o
     clearError()
     setLoading(true)
     try {
-      await register(email, password, deviceId, displayName || undefined)
+      await register(email, password, deviceId, displayName || undefined, inviteCode)
       // After registration, redirect to email verification
       onNeedsVerification(email)
     } catch {
@@ -34,6 +35,22 @@ export function RegisterForm({ deviceId, onSwitchToLogin, onNeedsVerification, o
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="reg-invite" className="block text-sm font-medium text-gray-700 mb-1">
+          Invite Code
+        </label>
+        <input
+          id="reg-invite"
+          type="text"
+          value={inviteCode}
+          onChange={e => setInviteCode(e.target.value)}
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+          placeholder="Paste your invite code"
+        />
+        <p className="text-xs text-gray-400 mt-1">Your organisation admin will provide this</p>
+      </div>
+
       <div>
         <label htmlFor="reg-name" className="block text-sm font-medium text-gray-700 mb-1">
           Display Name <span className="text-gray-400">(optional)</span>

@@ -79,7 +79,12 @@ async def get_optional_user(
         return None
 
 
-def create_access_token(user_id: str, device_id: str) -> str:
+def create_access_token(
+    user_id: str,
+    device_id: str,
+    org_id: Optional[str] = None,
+    org_role: Optional[str] = None,
+) -> str:
     """Create a short-lived access token."""
     import datetime
 
@@ -91,11 +96,19 @@ def create_access_token(user_id: str, device_id: str) -> str:
         "iat": now,
         "exp": now + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
+    if org_id:
+        payload["org_id"] = org_id
+    if org_role:
+        payload["org_role"] = org_role
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(
-    user_id: str, device_id: str, family_id: str | None = None
+    user_id: str,
+    device_id: str,
+    family_id: Optional[str] = None,
+    org_id: Optional[str] = None,
+    org_role: Optional[str] = None,
 ) -> str:
     """Create a long-lived refresh token with token family tracking."""
     import datetime
@@ -109,4 +122,8 @@ def create_refresh_token(
         "iat": now,
         "exp": now + datetime.timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
     }
+    if org_id:
+        payload["org_id"] = org_id
+    if org_role:
+        payload["org_role"] = org_role
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

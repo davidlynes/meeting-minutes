@@ -23,6 +23,7 @@ import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgr
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { AuthGate } from '@/components/Auth'
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
@@ -165,6 +166,9 @@ export default function RootLayout({
     const cleanedUpRef = { current: false };
 
     const setupListeners = async () => {
+      // Skip Tauri event listeners when running in a browser (not Tauri shell)
+      if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) return;
+
       // Drag enter/over - show overlay only if beta feature is enabled
       const unlistenDragEnter = await listen('tauri://drag-enter', () => {
         if (loadBetaFeatures().importAndRetranscribe) {
@@ -236,6 +240,7 @@ export default function RootLayout({
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
         {/* App-level providers (rarely change) */}
         <AuthProvider>
+        <AuthGate>
         <AnalyticsProvider>
           <OnboardingProvider>
             <UpdateCheckProvider>
@@ -279,6 +284,7 @@ export default function RootLayout({
             </UpdateCheckProvider>
           </OnboardingProvider>
         </AnalyticsProvider>
+        </AuthGate>
         </AuthProvider>
 
         <Toaster position="bottom-center" richColors closeButton />

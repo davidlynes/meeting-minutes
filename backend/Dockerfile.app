@@ -31,7 +31,7 @@ EXPOSE 5167
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:5167/get-meetings || exit 1
+    CMD curl -f http://localhost:5167/health || exit 1
 
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

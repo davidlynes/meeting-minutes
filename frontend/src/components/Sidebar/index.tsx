@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
+import { UserProfileMenu } from '@/components/Auth';
 
 import {
   Dialog,
@@ -84,7 +85,6 @@ const Sidebar: React.FC = React.memo(() => {
     currentTitle: ''
   });
   const [editingTitle, setEditingTitle] = useState<string>('');
-
   // Prefetch heavy routes so Next.js compiles them in the background at startup
   // instead of on first click (avoids ~8s compilation lag on /meeting-details)
   useEffect(() => {
@@ -813,6 +813,12 @@ const Sidebar: React.FC = React.memo(() => {
               <span>Settings</span>
             </button>
             <Info isCollapsed={isCollapsed} />
+
+            {/* User Profile */}
+            <div className="w-full px-1 mt-1">
+              <UserProfileMenu />
+            </div>
+
             <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-gray-400">
               v0.4.0
             </div>
@@ -878,6 +884,7 @@ const Sidebar: React.FC = React.memo(() => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 });
