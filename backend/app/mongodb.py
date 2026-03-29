@@ -107,10 +107,15 @@ async def ensure_indexes():
     # usage_events — query + aggregation + deduplication
     await db["usage_events"].create_index([("user_id", 1), ("received_at", -1)])
     await db["usage_events"].create_index([("user_id", 1), ("aggregated", 1)])
+    # Drop legacy sparse index that fails on explicit null client_event_id values
+    try:
+        await db["usage_events"].drop_index("user_id_1_device_id_1_client_event_id_1")
+    except Exception:
+        pass  # Index may not exist
     await db["usage_events"].create_index(
         [("user_id", 1), ("device_id", 1), ("client_event_id", 1)],
         unique=True,
-        sparse=True,
+        partialFilterExpression={"client_event_id": {"$type": "string"}},
     )
 
     # usage_summaries — compound unique
