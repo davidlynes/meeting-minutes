@@ -11,6 +11,7 @@ import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from argon2 import PasswordHasher
@@ -162,7 +163,7 @@ def _user_to_profile(doc: dict) -> UserProfile:
     )
 
 
-def _make_device_entry(device_id: str, platform: str | None = None) -> dict:
+def _make_device_entry(device_id: str, platform: Optional[str] = None) -> dict:
     """Create a device sub-document for embedding in the user record."""
     now = datetime.now(timezone.utc)
     return {
@@ -205,7 +206,7 @@ async def _create_token_family(user_id: str) -> str:
     return family_id
 
 
-def _get_client_ip(request: Request) -> str | None:
+def _get_client_ip(request: Request) -> Optional[str]:
     """Extract client IP from request."""
     return request.client.host if request.client else None
 

@@ -8,11 +8,12 @@ starts even if MongoDB is unreachable.
 
 import os
 import logging
+from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
-_client: AsyncIOMotorClient | None = None
+_client: Optional[AsyncIOMotorClient] = None
 
 
 def get_mongo_client() -> AsyncIOMotorClient:

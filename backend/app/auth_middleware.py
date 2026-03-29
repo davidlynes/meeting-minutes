@@ -95,7 +95,7 @@ def create_access_token(user_id: str, device_id: str) -> str:
 
 
 def create_refresh_token(
-    user_id: str, device_id: str, family_id: str | None = None
+    user_id: str, device_id: str, family_id: Optional[str] = None
 ) -> str:
     """Create a long-lived refresh token with token family tracking."""
     import datetime

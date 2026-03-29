@@ -17,9 +17,6 @@ from cloud_config import router as config_router
 import time
 import os
 
-# Deployment mode: "local" for desktop-side, "cloud" for Azure-hosted
-DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "local")
-
 # Load environment variables
 load_dotenv()
 
@@ -48,14 +45,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS — locked down in cloud mode, permissive in local mode
-if DEPLOYMENT_MODE == "cloud":
-    _cors_raw = os.getenv("CORS_ORIGINS", "")
-    _allow_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()] if _cors_raw else []
-    if not _allow_origins:
-        logger.warning("CORS_ORIGINS not set in cloud mode — no origins will be allowed")
+# CORS — use explicit origins in production, permissive in development
+_cors_raw = os.getenv("CORS_ORIGINS", "")
+if _cors_raw:
+    _allow_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 else:
     _allow_origins = ["*"]
+    logger.warning("CORS_ORIGINS not set — allowing all origins (development only)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,60 +62,55 @@ app.add_middleware(
     max_age=3600,
 )
 
-# Config endpoint available in all modes
+# ── Route registration (auth is ALWAYS mandatory) ──────────────────────
 app.include_router(config_router)
 
-if DEPLOYMENT_MODE == "cloud":
-    # Cloud mode: auth, usage, device, template routes only
-    from auth_routes import router as auth_router
-    from usage_routes import router as usage_router
-    app.include_router(auth_router)
-    app.include_router(usage_router)
-    app.include_router(device_router)
-    app.include_router(template_router)
-    app.include_router(release_router)
-    logger.info("Running in CLOUD mode — auth, usage, device, template, release routes active")
-else:
-    # Local mode: meeting/transcript/summary routes only (default)
-    app.include_router(template_router)
-    app.include_router(release_router)
-    app.include_router(device_router)
-    logger.info("Running in LOCAL mode — meeting, transcript, summary routes active")
+from auth_routes import router as auth_router
+from usage_routes import router as usage_router
+app.include_router(auth_router)
+app.include_router(usage_router)
+app.include_router(device_router)
+app.include_router(template_router)
+app.include_router(release_router)
+logger.info("All routes registered — auth is mandatory")
+
+
+@app.get("/health")
+async def health_check():
+    """Unauthenticated health check for Docker/orchestrator probes."""
+    return {"status": "ok"}
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Validate configuration and create indexes in cloud mode."""
-    if DEPLOYMENT_MODE != "cloud":
-        return
-
-    # Validate required environment variables
+    """Validate auth configuration and create MongoDB indexes."""
     required_vars = {
         "JWT_SECRET": os.getenv("JWT_SECRET", ""),
         "MONGODB_URI": os.getenv("MONGODB_URI", ""),
-        "SENDGRID_API_KEY": os.getenv("SENDGRID_API_KEY", ""),
     }
     missing = [k for k, v in required_vars.items() if not v]
     if missing:
         raise RuntimeError(
-            f"FATAL: Missing required env vars for cloud mode: {', '.join(missing)}"
+            f"FATAL: Missing required env vars: {', '.join(missing)}"
         )
 
-    # Validate JWT secret strength
     jwt_secret = required_vars["JWT_SECRET"]
     if len(jwt_secret) < 32:
         raise RuntimeError(
-            f"FATAL: JWT_SECRET must be at least 32 characters in cloud mode. "
+            f"FATAL: JWT_SECRET must be at least 32 characters. "
             f"Current length: {len(jwt_secret)}"
         )
 
-    # Verify MongoDB is reachable
+    # SendGrid is optional — falls back to logging codes to console
+    if not os.getenv("SENDGRID_API_KEY"):
+        logger.warning("SENDGRID_API_KEY not set — verification codes will be logged to console")
+
     from mongodb import check_mongo_connection, ensure_indexes
     if not await check_mongo_connection():
         raise RuntimeError("FATAL: Cannot connect to MongoDB. Check MONGODB_URI.")
 
     await ensure_indexes()
-    logger.info("Cloud startup checks passed")
+    logger.info("Startup checks passed — auth mandatory, MongoDB connected")
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()
