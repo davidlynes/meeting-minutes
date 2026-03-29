@@ -8,7 +8,8 @@ import { useSummarization } from '@/hooks/useSummarization'
 import { useTranscription } from '@/hooks/useTranscription'
 import TranscriptView from './TranscriptView'
 import SummaryView from './SummaryView'
-import { ArrowLeft, FileText, BookOpen } from 'lucide-react'
+import { FileText, BookOpen } from 'lucide-react'
+import { useHeader } from '@/contexts/HeaderContext'
 
 interface MeetingDetailProps {
   meetingId: string
@@ -19,6 +20,11 @@ export default function MeetingDetail({ meetingId }: MeetingDetailProps) {
   const [meeting, setMeeting] = useState<Meeting | null>(null)
   const [activeTab, setActiveTab] = useState<'transcript' | 'summary'>('transcript')
   const [loading, setLoading] = useState(true)
+
+  useHeader({
+    title: meeting?.title || 'Loading...',
+    showBack: true,
+  })
 
   const { generate: generateSummary, isPolling: isSummaryPolling, isStarting } = useSummarization(meetingId)
 
@@ -83,17 +89,8 @@ export default function MeetingDetail({ meetingId }: MeetingDetailProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2 border-b border-iq-light-shade">
-        <div className="flex items-center gap-3 mb-2">
-          <button onClick={() => router.back()} className="p-1 -ml-1">
-            <ArrowLeft className="w-5 h-5 text-iq-medium" />
-          </button>
-          <h1 className="text-lg font-semibold text-iq-dark truncate flex-1">
-            {meeting.title || 'Untitled Meeting'}
-          </h1>
-        </div>
-
+      {/* Status + Tabs */}
+      <div className="px-4 pt-2 pb-0 border-b border-iq-light-shade">
         {/* Status indicator for pending operations */}
         {meeting.status !== 'completed' && (
           <div className="text-xs text-iq-blue mb-2">
