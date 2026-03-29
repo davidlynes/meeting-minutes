@@ -19,7 +19,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string, deviceId: string) => Promise<void>
-  register: (email: string, password: string, deviceId: string, displayName?: string) => Promise<void>
+  register: (email: string, password: string, deviceId: string, displayName?: string, inviteCode?: string) => Promise<void>
   logout: () => Promise<void>
   error: string | null
   clearError: () => void
@@ -127,10 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [scheduleRefresh])
 
-  const register = useCallback(async (email: string, password: string, deviceId: string, displayName?: string) => {
+  const register = useCallback(async (email: string, password: string, deviceId: string, displayName?: string, inviteCode?: string) => {
     setError(null)
     try {
-      const result = await apiRegister(email, password, deviceId, displayName)
+      const result = await apiRegister(email, password, deviceId, displayName, inviteCode)
       setUser(result.user)
       scheduleRefresh()
       // Link auth user to analytics

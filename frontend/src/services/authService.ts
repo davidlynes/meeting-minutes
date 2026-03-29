@@ -146,6 +146,7 @@ export async function register(
   password: string,
   deviceId: string,
   displayName?: string,
+  inviteCode?: string,
 ): Promise<AuthResponse> {
   const res = await fetch(`${getBaseUrl()}/api/auth/register`, {
     method: 'POST',
@@ -155,6 +156,7 @@ export async function register(
       password,
       device_id: deviceId,
       display_name: displayName || null,
+      invite_code: inviteCode,
     }),
   })
   if (!res.ok) {
