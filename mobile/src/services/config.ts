@@ -24,6 +24,12 @@ const ENV_DEFAULTS: Record<string, string> = {
   development: 'http://localhost:5167',
 }
 
+// Override: allow runtime API URL from Capacitor server config or env
+// This enables testing on physical devices against a local network backend
+const RUNTIME_API_URL = typeof window !== 'undefined'
+  ? (window as any).__IQ_API_URL
+  : undefined
+
 const environment = detectEnvironment()
 
 export const config = {
