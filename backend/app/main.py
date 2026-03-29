@@ -68,8 +68,10 @@ app.include_router(config_router)
 
 from auth_routes import router as auth_router
 from usage_routes import router as usage_router
+from org_routes import router as org_router
 app.include_router(auth_router)
 app.include_router(usage_router)
+app.include_router(org_router)
 app.include_router(device_router)
 app.include_router(template_router)
 app.include_router(release_router)
