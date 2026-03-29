@@ -20,33 +20,22 @@ export default function AppHeader({
   const router = useRouter()
 
   return (
-    <div className="sticky top-0 z-40 w-full flex-shrink-0">
-      {/* iOS status bar area — solid dark blue, no text here */}
-      <div
-        className="w-full"
-        style={{
-          height: 'env(safe-area-inset-top, 0px)',
-          backgroundColor: '#1e6d99',
-        }}
-      />
-      {/* App header — below the status bar */}
-      <header
-        className="flex items-center gap-3 px-4 py-3 text-white"
-        style={{ background: 'linear-gradient(135deg, #2276aa, #1caac9)' }}
-      >
-        {showBack && (
-          <button onClick={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-white/10">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+    <header
+      className="sticky top-0 z-40 w-full flex-shrink-0 flex items-center gap-3 px-4 py-3 text-white"
+      style={{ background: 'linear-gradient(135deg, #2276aa, #1caac9)' }}
+    >
+      {showBack && (
+        <button onClick={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-white/10">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      )}
+      <div className="flex-1 min-w-0">
+        <h1 className="text-lg font-bold leading-tight truncate">{title}</h1>
+        {subtitle && (
+          <p className="text-xs text-white/60 truncate">{subtitle}</p>
         )}
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold leading-tight truncate">{title}</h1>
-          {subtitle && (
-            <p className="text-xs text-white/60 truncate">{subtitle}</p>
-          )}
-        </div>
-        {rightContent}
-      </header>
-    </div>
+      </div>
+      {rightContent}
+    </header>
   )
 }
