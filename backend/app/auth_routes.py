@@ -187,7 +187,12 @@ async def _validate_invite(invite_code: str, email: str) -> dict:
     if invite.get("used"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite code has already been used")
     now = datetime.now(timezone.utc)
-    if invite.get("expires_at") and invite["expires_at"] < now:
+    expires_at = invite.get("expires_at")
+    if expires_at:
+        # Ensure timezone-aware comparison (MongoDB may store naive datetimes)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at < now:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite code has expired")
     if invite.get("email") and invite["email"].lower() != email.lower():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite code is not valid for this email address")
