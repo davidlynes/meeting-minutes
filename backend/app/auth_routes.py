@@ -27,6 +27,8 @@ from mongodb import (
     get_email_verifications_collection,
     get_usage_events_collection,
     get_usage_summaries_collection,
+    get_organisations_collection,
+    get_invites_collection,
 )
 from auth_models import (
     RegisterRequest,
@@ -137,7 +139,7 @@ async def _send_verification_email(email: str, code: str):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-def _user_to_profile(doc: dict) -> UserProfile:
+def _user_to_profile(doc: dict, org_name: Optional[str] = None) -> UserProfile:
     """Convert a MongoDB user document to a UserProfile response."""
     devices = []
     for d in doc.get("devices", []):
@@ -160,7 +162,43 @@ def _user_to_profile(doc: dict) -> UserProfile:
         account_level=doc.get("account_level", "free"),
         email_verified=doc.get("email_verified", True),
         devices=devices,
+        org_id=doc.get("org_id"),
+        org_role=doc.get("org_role"),
+        org_name=org_name,
     )
+
+
+async def _get_org_name(org_id: Optional[str]) -> Optional[str]:
+    """Look up organisation name by ID."""
+    if not org_id:
+        return None
+    org = await get_organisations_collection().find_one(
+        {"org_id": org_id}, {"name": 1}
+    )
+    return org["name"] if org else None
+
+
+async def _validate_invite(invite_code: str, email: str) -> dict:
+    """Validate an invite code and return the invite doc. Raises on failure."""
+    invites_col = get_invites_collection()
+    invite = await invites_col.find_one({"code": invite_code})
+    if not invite:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid invite code")
+    if invite.get("used"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite code has already been used")
+    now = datetime.now(timezone.utc)
+    if invite.get("expires_at") and invite["expires_at"] < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite code has expired")
+    if invite.get("email") and invite["email"].lower() != email.lower():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite code is not valid for this email address")
+    org = await get_organisations_collection().find_one({"org_id": invite["org_id"]})
+    if not org:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Organisation no longer exists")
+    if org.get("max_users"):
+        current_count = await get_users_collection().count_documents({"org_id": org["org_id"]})
+        if current_count >= org["max_users"]:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Organisation has reached its maximum of {org['max_users']} users")
+    return invite
 
 
 def _make_device_entry(device_id: str, platform: Optional[str] = None) -> dict:
@@ -174,22 +212,29 @@ def _make_device_entry(device_id: str, platform: Optional[str] = None) -> dict:
     }
 
 
-def _get_max_devices(user: dict) -> int:
-    """Get max devices for user's account level."""
+async def _get_max_devices(user: dict) -> int:
+    """Get max devices — org setting overrides account level."""
+    org_id = user.get("org_id")
+    if org_id:
+        org = await get_organisations_collection().find_one(
+            {"org_id": org_id}, {"max_devices_per_user": 1}
+        )
+        if org and org.get("max_devices_per_user"):
+            return org["max_devices_per_user"]
     level = user.get("account_level", "free")
     return ACCOUNT_LEVEL_LIMITS.get(level, DEFAULT_MAX_DEVICES)
 
 
-def _check_device_limit(user: dict, new_device_id: str):
+async def _check_device_limit(user: dict, new_device_id: str):
     """Raise 403 if adding a new device would exceed the limit."""
     device_ids = [d["device_id"] for d in user.get("devices", [])]
     if new_device_id in device_ids:
-        return  # Already linked, no limit issue
-    max_devices = _get_max_devices(user)
+        return
+    max_devices = await _get_max_devices(user)
     if len(device_ids) >= max_devices:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Maximum {max_devices} devices allowed for your account level.",
+            detail=f"Maximum {max_devices} devices allowed.",
         )
 
 
@@ -231,6 +276,18 @@ async def register(req: RegisterRequest, request: Request):
     now = datetime.now(timezone.utc)
     password_hash = ph.hash(req.password)
 
+    # Handle org assignment via invite code
+    org_id = None
+    org_role = "member"
+    if req.invite_code:
+        invite = await _validate_invite(req.invite_code, req.email)
+        org_id = invite["org_id"]
+        org_role = invite.get("role", "member")
+        await get_invites_collection().update_one(
+            {"code": req.invite_code},
+            {"$set": {"used": True, "used_by": req.email, "used_at": now}},
+        )
+
     user_doc = {
         "user_id": user_id,
         "email": req.email,
@@ -243,6 +300,8 @@ async def register(req: RegisterRequest, request: Request):
         "account_level": "free",
         "email_verified": False,
         "devices": [_make_device_entry(req.device_id)],
+        "org_id": org_id,
+        "org_role": org_role,
     }
 
     await col.insert_one(user_doc)
@@ -262,15 +321,16 @@ async def register(req: RegisterRequest, request: Request):
 
     # Create token family and issue tokens
     family_id = await _create_token_family(user_id)
-    access = create_access_token(user_id, req.device_id)
-    refresh = create_refresh_token(user_id, req.device_id, family_id)
+    access = create_access_token(user_id, req.device_id, org_id=org_id, org_role=org_role)
+    refresh = create_refresh_token(user_id, req.device_id, family_id, org_id=org_id, org_role=org_role)
 
+    org_name = await _get_org_name(org_id)
     await log_event("register", user_id=user_id, email=req.email, ip=ip)
     logger.info(f"User registered: {req.email}")
     return AuthResponse(
         access_token=access,
         refresh_token=refresh,
-        user=_user_to_profile(user_doc),
+        user=_user_to_profile(user_doc, org_name=org_name),
     )
 
 
@@ -345,7 +405,7 @@ async def login(req: LoginRequest, request: Request):
     now = datetime.now(timezone.utc)
 
     # Check device limit and link if not present
-    _check_device_limit(user, req.device_id)
+    await _check_device_limit(user, req.device_id)
     device_ids = [d["device_id"] for d in user.get("devices", [])]
     if req.device_id not in device_ids:
         await col.update_one(
@@ -370,16 +430,19 @@ async def login(req: LoginRequest, request: Request):
     await attempts_col.delete_many({"email": req.email})
 
     # Create token family and issue tokens
+    org_id = user.get("org_id")
+    org_role = user.get("org_role")
     family_id = await _create_token_family(user["user_id"])
-    access = create_access_token(user["user_id"], req.device_id)
-    refresh = create_refresh_token(user["user_id"], req.device_id, family_id)
+    access = create_access_token(user["user_id"], req.device_id, org_id=org_id, org_role=org_role)
+    refresh = create_refresh_token(user["user_id"], req.device_id, family_id, org_id=org_id, org_role=org_role)
 
+    org_name = await _get_org_name(org_id)
     await log_event("login", user_id=user["user_id"], email=req.email, ip=ip)
     logger.info(f"User logged in: {req.email}")
     return AuthResponse(
         access_token=access,
         refresh_token=refresh,
-        user=_user_to_profile(user),
+        user=_user_to_profile(user, org_name=org_name),
     )
 
 
@@ -416,14 +479,17 @@ async def refresh_token(req: RefreshRequest, request: Request):
         )
 
     # Issue new family
+    org_id = user.get("org_id")
+    org_role = user.get("org_role")
     new_family_id = await _create_token_family(user_id)
-    access = create_access_token(user_id, device_id)
-    new_refresh = create_refresh_token(user_id, device_id, new_family_id)
+    access = create_access_token(user_id, device_id, org_id=org_id, org_role=org_role)
+    new_refresh = create_refresh_token(user_id, device_id, new_family_id, org_id=org_id, org_role=org_role)
 
+    org_name = await _get_org_name(org_id)
     return AuthResponse(
         access_token=access,
         refresh_token=new_refresh,
-        user=_user_to_profile(user),
+        user=_user_to_profile(user, org_name=org_name),
     )
 
 
@@ -447,7 +513,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     user = await col.find_one({"user_id": current_user["sub"]})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return _user_to_profile(user)
+    org_name = await _get_org_name(user.get("org_id"))
+    return _user_to_profile(user, org_name=org_name)
 
 
 @router.post("/link-device")
@@ -474,7 +541,7 @@ async def link_device(
         return {"message": "Device already linked", "device_id": req.device_id}
 
     # Check device limit
-    _check_device_limit(user, req.device_id)
+    await _check_device_limit(user, req.device_id)
 
     entry = _make_device_entry(req.device_id, platform=req.platform)
     await col.update_one(
