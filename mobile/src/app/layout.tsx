@@ -81,9 +81,9 @@ function AuthGatedApp({ children }: { children: React.ReactNode }) {
   return (
     <SyncProvider>
       <RecordingProvider>
-        <main className="flex flex-col h-screen">
+        <main className="flex flex-col h-screen w-full overflow-x-hidden">
           <AppHeader />
-          <div className="flex-1 overflow-y-auto pb-16">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pb-16 px-4">
             {children}
           </div>
           <TabBar />
@@ -113,24 +113,24 @@ function InlineLoginForm({ onForgot, onRegister, onNeedsVerification }: {
     }
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-sm text-iq-dark bg-white focus:outline-none focus:ring-2 focus:ring-iq-blue focus:border-transparent"
+  
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-6 bg-iq-light">
+    <div className="flex flex-col items-center px-6 pt-12 pb-8 bg-iq-light min-h-full overflow-y-auto">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
         <p className="text-sm text-iq-medium mb-6">Welcome back</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="detail-label mb-1 block">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" className={inputClass} placeholder="you@example.com" />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" className="input-iq" placeholder="you@example.com" />
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="detail-label">Password</label>
               <button type="button" onClick={onForgot} className="text-xs text-iq-blue font-semibold">Forgot password?</button>
             </div>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" className={inputClass} placeholder="Your password" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" className="input-iq" placeholder="Your password" />
           </div>
           {error && <div className="status-banner status-banner-danger"><span className="text-sm text-iq-red">{error}</span></div>}
           <button type="submit" disabled={isLoading} className="w-full btn-iq-primary disabled:opacity-50">{isLoading ? 'Signing in...' : 'Sign In'}</button>
@@ -160,30 +160,30 @@ function InlineRegisterForm({ onLogin, onNeedsVerification }: {
     if (success) onNeedsVerification(email)
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-sm text-iq-dark bg-white focus:outline-none focus:ring-2 focus:ring-iq-blue focus:border-transparent"
+  
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-6 bg-iq-light">
+    <div className="flex flex-col items-center px-6 pt-12 pb-8 bg-iq-light min-h-full overflow-y-auto">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
         <p className="text-sm text-iq-medium mb-6">Create your account</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="detail-label mb-1 block">Invite Code</label>
-            <input type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value)} required className={`${inputClass} font-mono`} placeholder="Paste your invite code" />
+            <input type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value)} required className="input-iq font-mono" placeholder="Paste your invite code" />
             <p className="text-xs text-iq-medium mt-1">Your organisation admin will provide this</p>
           </div>
           <div>
             <label className="detail-label mb-1 block">Name <span className="normal-case font-normal">(optional)</span></label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} autoComplete="name" className={inputClass} placeholder="Your name" />
+            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} autoComplete="name" className="input-iq" placeholder="Your name" />
           </div>
           <div>
             <label className="detail-label mb-1 block">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" className={inputClass} placeholder="you@example.com" />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" className="input-iq" placeholder="you@example.com" />
           </div>
           <div>
             <label className="detail-label mb-1 block">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" className={inputClass} placeholder="Min 8 characters" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" className="input-iq" placeholder="Min 8 characters" />
             <p className="text-xs text-iq-medium mt-1">Must include uppercase, lowercase, and a number</p>
           </div>
           {error && <div className="status-banner status-banner-danger"><span className="text-sm text-iq-red">{error}</span></div>}
@@ -217,17 +217,17 @@ function InlineForgotForm({ onBack, onCodeSent }: { onBack: () => void; onCodeSe
     }
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-sm text-iq-dark bg-white focus:outline-none focus:ring-2 focus:ring-iq-blue focus:border-transparent"
+  
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-6 bg-iq-light">
+    <div className="flex flex-col items-center px-6 pt-12 pb-8 bg-iq-light min-h-full overflow-y-auto">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
         <p className="text-sm text-iq-medium mb-6">Reset your password</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="detail-label mb-1 block">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className={inputClass} placeholder="you@example.com" />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-iq" placeholder="you@example.com" />
           </div>
           {error && <div className="status-banner status-banner-danger"><span className="text-sm text-iq-red">{error}</span></div>}
           <button type="submit" disabled={loading} className="w-full btn-iq-primary disabled:opacity-50">{loading ? 'Sending...' : 'Send Reset Code'}</button>
@@ -262,17 +262,17 @@ function InlineVerifyForm({ email, onVerified, onBack }: { email: string; onVeri
     }
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-sm text-iq-dark bg-white focus:outline-none focus:ring-2 focus:ring-iq-blue focus:border-transparent"
+  
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-6 bg-iq-light">
+    <div className="flex flex-col items-center px-6 pt-12 pb-8 bg-iq-light min-h-full overflow-y-auto">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
         <p className="text-sm text-iq-medium mb-6">Enter the 6-digit code sent to {email}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="detail-label mb-1 block">Verification Code</label>
-            <input type="text" value={code} onChange={e => setCode(e.target.value)} required maxLength={6} className={`${inputClass} font-mono text-center text-lg tracking-widest`} placeholder="000000" />
+            <input type="text" value={code} onChange={e => setCode(e.target.value)} required maxLength={6} className="input-iq font-mono text-center tracking-widest" placeholder="000000" />
           </div>
           {success && <div className="status-banner status-banner-success"><span className="text-sm text-iq-green">Email verified!</span></div>}
           {error && <div className="status-banner status-banner-danger"><span className="text-sm text-iq-red">{error}</span></div>}
@@ -307,21 +307,21 @@ function InlineResetForm({ email, onReset, onBack }: { email: string; onReset: (
     }
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-sm text-iq-dark bg-white focus:outline-none focus:ring-2 focus:ring-iq-blue focus:border-transparent"
+  
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-6 bg-iq-light">
+    <div className="flex flex-col items-center px-6 pt-12 pb-8 bg-iq-light min-h-full overflow-y-auto">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
         <p className="text-sm text-iq-medium mb-6">Enter the code sent to {email}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="detail-label mb-1 block">Reset Code</label>
-            <input type="text" value={code} onChange={e => setCode(e.target.value)} required maxLength={6} className={`${inputClass} font-mono text-center text-lg tracking-widest`} placeholder="000000" />
+            <input type="text" value={code} onChange={e => setCode(e.target.value)} required maxLength={6} className="input-iq font-mono text-center tracking-widest" placeholder="000000" />
           </div>
           <div>
             <label className="detail-label mb-1 block">New Password</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8} className={inputClass} placeholder="Min 8 characters" />
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8} className="input-iq" placeholder="Min 8 characters" />
           </div>
           {error && <div className="status-banner status-banner-danger"><span className="text-sm text-iq-red">{error}</span></div>}
           <button type="submit" disabled={loading} className="w-full btn-iq-primary disabled:opacity-50">{loading ? 'Resetting...' : 'Reset Password'}</button>

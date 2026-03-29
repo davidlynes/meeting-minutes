@@ -3,10 +3,27 @@
 @tailwind utilities;
 
 /* Mobile-specific overrides */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 html, body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Allow text selection in inputs */
+input, textarea, [contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Prevent iOS zoom on input focus */
+input, textarea, select {
+  font-size: 16px !important;
 }
 
 /* Safe area insets for notched devices */
@@ -48,6 +65,17 @@ body {
     @apply bg-iq-red text-white rounded-full px-6 py-2.5 text-sm font-semibold;
   }
 
+  /* IQ Input */
+  .input-iq {
+    @apply w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-iq-dark bg-white;
+    font-size: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .input-iq:focus {
+    @apply outline-none ring-2 ring-iq-blue border-transparent;
+  }
+
   /* Status banner component */
   .status-banner {
     @apply flex items-start gap-2.5 p-3 rounded-iq-md mb-2.5;
@@ -68,5 +96,10 @@ body {
   }
   .detail-value {
     @apply text-[0.85rem] text-iq-dark;
+  }
+
+  /* Auth form container */
+  .auth-form-container {
+    @apply w-full max-w-sm px-6 py-8;
   }
 }
