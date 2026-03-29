@@ -20,14 +20,20 @@ export default function AppHeader({
   const router = useRouter()
 
   return (
-    <header
-      className="sticky top-0 z-40 w-full flex-shrink-0"
-      style={{ background: 'linear-gradient(135deg, #2276aa, #1caac9)' }}
-    >
-      {/* Status bar spacer */}
-      <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
-      {/* Header content */}
-      <div className="flex items-center gap-3 px-4 py-3 text-white">
+    <div className="sticky top-0 z-40 w-full flex-shrink-0">
+      {/* iOS status bar area — solid dark blue, no text here */}
+      <div
+        className="w-full"
+        style={{
+          height: 'env(safe-area-inset-top, 0px)',
+          backgroundColor: '#1e6d99',
+        }}
+      />
+      {/* App header — below the status bar */}
+      <header
+        className="flex items-center gap-3 px-4 py-3 text-white"
+        style={{ background: 'linear-gradient(135deg, #2276aa, #1caac9)' }}
+      >
         {showBack && (
           <button onClick={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-white/10">
             <ChevronLeft className="w-5 h-5" />
@@ -40,7 +46,7 @@ export default function AppHeader({
           )}
         </div>
         {rightContent}
-      </div>
-    </header>
+      </header>
+    </div>
   )
 }
