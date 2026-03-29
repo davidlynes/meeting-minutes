@@ -4,6 +4,9 @@ const nextConfig = {
   reactStrictMode: false,
   // Static export required for Capacitor, but breaks dynamic routes in dev
   ...(isDev ? {} : { output: 'export' }),
+  // trailingSlash ensures /auth/login/index.html is generated (required for
+  // Capacitor client-side routing — without this, Link navigation fails)
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },
