@@ -81,6 +81,14 @@ def get_audit_log_collection():
     return _get_db()["audit_log"]
 
 
+def get_organisations_collection():
+    return _get_db()["organisations"]
+
+
+def get_invites_collection():
+    return _get_db()["invites"]
+
+
 async def ensure_indexes():
     """Create all required indexes. Call once at startup in cloud mode."""
     db = _get_db()
@@ -127,6 +135,15 @@ async def ensure_indexes():
     # audit_log — query by user and event type
     await db["audit_log"].create_index([("user_id", 1), ("timestamp", -1)])
     await db["audit_log"].create_index("event_type")
+
+    # Invites
+    await db["invites"].create_index("code", unique=True)
+    await db["invites"].create_index("org_id")
+    await db["invites"].create_index("email")
+    await db["invites"].create_index(
+        "expires_at",
+        expireAfterSeconds=0,  # TTL: auto-delete after expiry
+    )
 
     logger.info("MongoDB indexes ensured")
 
