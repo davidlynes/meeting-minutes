@@ -8,11 +8,12 @@ starts even if MongoDB is unreachable.
 
 import os
 import logging
+from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
-_client: AsyncIOMotorClient | None = None
+_client: Optional[AsyncIOMotorClient] = None
 
 
 def get_mongo_client() -> AsyncIOMotorClient:
@@ -80,6 +81,14 @@ def get_audit_log_collection():
     return _get_db()["audit_log"]
 
 
+def get_organisations_collection():
+    return _get_db()["organisations"]
+
+
+def get_invites_collection():
+    return _get_db()["invites"]
+
+
 async def ensure_indexes():
     """Create all required indexes. Call once at startup in cloud mode."""
     db = _get_db()
@@ -106,10 +115,15 @@ async def ensure_indexes():
     # usage_events — query + aggregation + deduplication
     await db["usage_events"].create_index([("user_id", 1), ("received_at", -1)])
     await db["usage_events"].create_index([("user_id", 1), ("aggregated", 1)])
+    # Drop legacy sparse index that fails on explicit null client_event_id values
+    try:
+        await db["usage_events"].drop_index("user_id_1_device_id_1_client_event_id_1")
+    except Exception:
+        pass  # Index may not exist
     await db["usage_events"].create_index(
         [("user_id", 1), ("device_id", 1), ("client_event_id", 1)],
         unique=True,
-        sparse=True,
+        partialFilterExpression={"client_event_id": {"$type": "string"}},
     )
 
     # usage_summaries — compound unique
@@ -121,6 +135,15 @@ async def ensure_indexes():
     # audit_log — query by user and event type
     await db["audit_log"].create_index([("user_id", 1), ("timestamp", -1)])
     await db["audit_log"].create_index("event_type")
+
+    # Invites
+    await db["invites"].create_index("code", unique=True)
+    await db["invites"].create_index("org_id")
+    await db["invites"].create_index("email")
+    await db["invites"].create_index(
+        "expires_at",
+        expireAfterSeconds=0,  # TTL: auto-delete after expiry
+    )
 
     logger.info("MongoDB indexes ensured")
 

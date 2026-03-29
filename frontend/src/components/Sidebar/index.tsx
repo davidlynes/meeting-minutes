@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -14,6 +14,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useImportDialog } from '@/contexts/ImportDialogContext';
+import { useConfig } from '@/contexts/ConfigContext';
+import { UserProfileMenu } from '@/components/Auth';
 
 import {
   Dialog,
@@ -57,6 +60,8 @@ const Sidebar: React.FC = React.memo(() => {
 
   // Get recording state from RecordingStateContext (single source of truth)
   const { isRecording } = useRecordingState();
+  const { openImportDialog } = useImportDialog();
+  const { betaFeatures } = useConfig();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
@@ -80,7 +85,6 @@ const Sidebar: React.FC = React.memo(() => {
     currentTitle: ''
   });
   const [editingTitle, setEditingTitle] = useState<string>('');
-
   // Prefetch heavy routes so Next.js compiles them in the background at startup
   // instead of on first click (avoids ~8s compilation lag on /meeting-details)
   useEffect(() => {
@@ -489,6 +493,22 @@ const Sidebar: React.FC = React.memo(() => {
             </TooltipContent>
           </Tooltip>
 
+          {betaFeatures.importAndRetranscribe && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => openImportDialog()}
+                  className="p-2 rounded-lg transition-colors duration-150 hover:bg-blue-100 bg-blue-50"
+                >
+                  <Upload className="w-5 h-5 text-blue-600" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Import Audio</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -775,6 +795,16 @@ const Sidebar: React.FC = React.memo(() => {
               )}
             </button>
 
+            {betaFeatures.importAndRetranscribe && (
+              <button
+                onClick={() => openImportDialog()}
+                className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-gray-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors shadow-sm"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                <span>Import Audio</span>
+              </button>
+            )}
+
             <button
               onClick={() => router.push('/settings')}
               className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors shadow-sm"
@@ -783,8 +813,14 @@ const Sidebar: React.FC = React.memo(() => {
               <span>Settings</span>
             </button>
             <Info isCollapsed={isCollapsed} />
+
+            {/* User Profile */}
+            <div className="w-full px-1 mt-1">
+              <UserProfileMenu />
+            </div>
+
             <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-gray-400">
-              v0.2.1
+              v0.4.0
             </div>
           </div>
         )}
@@ -848,6 +884,7 @@ const Sidebar: React.FC = React.memo(() => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 });

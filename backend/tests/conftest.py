@@ -1,17 +1,19 @@
 """
-Shared test fixtures for auth and usage tests.
+Shared test fixtures for backend tests.
 
 Requires a local MongoDB instance on localhost:27017.
 Uses a dedicated test database that is cleaned between tests.
 """
 
+import asyncio
 import os
 import sys
 import pytest
 import pytest_asyncio
 
-# Add the app directory to the path
+# Add the app and tests directories to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
+sys.path.insert(0, os.path.dirname(__file__))
 
 # Set test environment variables BEFORE any app imports
 os.environ["DEPLOYMENT_MODE"] = "cloud"
@@ -21,30 +23,57 @@ os.environ["MONGODB_DATABASE"] = "iqcapture_test"
 os.environ["SENDGRID_API_KEY"] = ""  # Skip actual email sending in tests
 
 
+# ── Session-scoped event loop ────────────────────────────────────────
+# Motor's AsyncIOMotorClient binds to the event loop on first use.
+# With per-function loops (the default), the singleton client becomes
+# stale after the first test closes its loop.  A single session-wide
+# loop avoids the problem entirely.
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+# ── Fixtures ─────────────────────────────────────────────────────────
 @pytest_asyncio.fixture
-async def client():
-    """Create an async test client for the FastAPI app."""
+async def client(cleanup_db):
+    """Create an async test client for the FastAPI app.
+
+    Depends on cleanup_db to ensure a clean MongoDB state for each test.
+    Also cleans the SQLite database so tests don't leak state.
+    """
     from httpx import AsyncClient, ASGITransport
-    from main import app
+    from main import app, db as sqlite_db
+    import aiosqlite
+
+    # Clean SQLite tables between tests
+    async with aiosqlite.connect(sqlite_db.db_path) as conn:
+        for table in ("meetings", "transcripts", "summary_processes",
+                       "transcript_chunks", "settings", "transcript_settings"):
+            await conn.execute(f"DELETE FROM {table}")
+        await conn.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 
-@pytest_asyncio.fixture(autouse=True)
+@pytest_asyncio.fixture
 async def cleanup_db():
-    """Clean the test database before and after each test."""
-    from mongodb import get_mongo_client
+    """Clean the MongoDB test database before and after each test.
 
-    db = get_mongo_client()["iqcapture_test"]
-    collection_names = await db.list_collection_names()
-    for name in collection_names:
-        await db[name].delete_many({})
+    Drops the entire database (not just documents) so that stale data
+    and unique indexes don't leak between tests, then recreates indexes
+    so that tests relying on them (e.g. deduplication) work correctly.
+    """
+    from mongodb import get_mongo_client, ensure_indexes
+
+    mongo_client = get_mongo_client()
+    await mongo_client.drop_database("iqcapture_test")
+    await ensure_indexes()
     yield
-    collection_names = await db.list_collection_names()
-    for name in collection_names:
-        await db[name].delete_many({})
+    await mongo_client.drop_database("iqcapture_test")
 
 
 def _register_payload(email="test@example.com", password="TestPass1", device_id="device-001"):

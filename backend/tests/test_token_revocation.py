@@ -1,9 +1,6 @@
 """Tests for refresh token family revocation."""
 
-import pytest
-from conftest import _register_payload, _login_payload
-
-pytestmark = pytest.mark.asyncio
+from helpers import _register_payload, _login_payload
 
 
 async def test_refresh_after_logout_fails(client):

@@ -9,9 +9,10 @@ PostHog events for a specific installation.
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from mongodb import get_mongo_client
+from auth_middleware import get_current_user
 import os
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,8 @@ class ToggleAdvancedLogsRequest(BaseModel):
 # ── Routes ──────────────────────────────────────────────────────────
 
 @router.get("")
-async def list_devices(limit: int = 50):
-    """List registered devices sorted by most recently seen."""
+async def list_devices(limit: int = 50, current_user: dict = Depends(get_current_user)):
+    """List registered devices sorted by most recently seen. Requires authentication."""
     try:
         col = _devices_collection()
         cursor = col.find({}).sort("last_seen", -1).limit(limit)
@@ -56,8 +57,8 @@ async def list_devices(limit: int = 50):
 
 
 @router.patch("/advanced-logs")
-async def toggle_advanced_logs(request: ToggleAdvancedLogsRequest):
-    """Enable or disable advanced logging for a specific device."""
+async def toggle_advanced_logs(request: ToggleAdvancedLogsRequest, current_user: dict = Depends(get_current_user)):
+    """Enable or disable advanced logging for a specific device. Requires authentication."""
     try:
         col = _devices_collection()
         result = await col.update_one(

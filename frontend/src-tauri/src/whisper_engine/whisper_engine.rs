@@ -10,7 +10,7 @@ use anyhow::{Result, anyhow};
 use reqwest::Client;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use crate::{perf_debug, perf_trace};
+use crate::config::WHISPER_MODEL_CATALOG;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ModelStatus {
@@ -173,29 +173,10 @@ impl WhisperEngine {
     pub async fn discover_models(&self) -> Result<Vec<ModelInfo>> {
         let models_dir = &self.models_dir;
         let mut models = Vec::new();
-                // Using standard ggerganov/whisper.cpp GGML models
-        let model_configs = [
-            // Standard f16 models (full precision)
-            ("tiny", "ggml-tiny.bin", 74, "Decent", "Very Fast", "Fastest processing, good for real-time use"),
-            ("base", "ggml-base.bin", 142, "Good", "Fast", "Good balance of speed and accuracy"),
-            ("small", "ggml-small.bin", 466, "Good", "Medium", "Better accuracy, moderate speed"),
-            ("medium", "ggml-medium.bin", 1463, "High", "Slow", "High accuracy for professional use"),
-            ("large-v3-turbo", "ggml-large-v3-turbo.bin", 1549, "High", "Medium", "Best accuracy with improved speed"),
-            ("large-v3", "ggml-large-v3.bin", 2951, "High", "Slow", "Most Accurate, latest large model"),
+        // Use centralized model catalog from config.rs
+        let model_configs = WHISPER_MODEL_CATALOG;
 
-            // Q5_1 quantized models (balanced speed/accuracy, slightly better quality than Q5_0)
-            ("tiny-q5_1", "ggml-tiny-q5_1.bin", 31, "Decent", "Very Fast", "Quantized tiny model, ~50% faster processing"),
-            ("base-q5_1", "ggml-base-q5_1.bin", 57, "Good", "Fast", "Quantized base model, good speed/accuracy balance"),
-            ("small-q5_1", "ggml-small-q5_1.bin", 181, "Good", "Fast", "Quantized small model, faster than f16 version"),
-
-            // Q5_0 quantized models (balanced speed/accuracy)
-            ("medium-q5_0", "ggml-medium-q5_0.bin", 514, "High", "Medium", "Quantized medium model, professional quality"),
-            ("large-v3-turbo-q5_0", "ggml-large-v3-turbo-q5_0.bin", 547, "High", "Medium", "Quantized large model, best balance"),
-            ("large-v3-q5_0", "ggml-large-v3-q5_0.bin", 1031, "High", "Slow", "Quantized large model, high accuracy"),
-
-           ];
-        
-        for (name, filename, size_mb, accuracy, speed, description) in model_configs {
+        for &(name, filename, size_mb, accuracy, speed, description) in model_configs {
             let model_path = models_dir.join(filename);
             let status = if model_path.exists() {
                 // Check if file size is reasonable (at least 1MB for a valid model)
@@ -493,23 +474,35 @@ impl WhisperEngine {
         false
     }
 
-    // Enhanced word repetition removal
+    /// Strip trailing punctuation for comparison (e.g. "it," → "it", "we." → "we")
+    fn strip_trailing_punct(word: &str) -> &str {
+        word.trim_end_matches(|c: char| c.is_ascii_punctuation())
+    }
+
+    // Enhanced word repetition removal — case-insensitive, punctuation-aware
     fn remove_word_repetitions<'a>(words: &'a [&'a str]) -> Vec<&'a str> {
         let mut cleaned_words = Vec::new();
         let mut i = 0;
 
         while i < words.len() {
             let current_word = words[i];
+            let current_stripped = Self::strip_trailing_punct(current_word).to_lowercase();
             let mut repeat_count = 1;
 
-            // Count consecutive repetitions of the same word
-            while i + repeat_count < words.len() && words[i + repeat_count] == current_word {
-                repeat_count += 1;
+            // Count consecutive repetitions — case-insensitive, ignore trailing punctuation
+            while i + repeat_count < words.len() {
+                let next_stripped = Self::strip_trailing_punct(words[i + repeat_count]).to_lowercase();
+                if next_stripped == current_stripped {
+                    repeat_count += 1;
+                } else {
+                    break;
+                }
             }
 
-            // Be more aggressive: if word is repeated 2+ times, only keep one instance
+            // Keep only one instance of repeated words
             if repeat_count >= 2 {
-                cleaned_words.push(current_word);
+                // Keep the last occurrence (most likely to have correct trailing punctuation)
+                cleaned_words.push(words[i + repeat_count - 1]);
                 i += repeat_count;
             } else {
                 cleaned_words.push(current_word);
@@ -517,10 +510,44 @@ impl WhisperEngine {
             }
         }
 
-        cleaned_words
+        // Second pass: collapse single-letter stutters like "c c c c c c crap" → "crap"
+        // (Whisper sometimes produces these on noise or unclear speech)
+        let mut final_words: Vec<&'a str> = Vec::new();
+        let mut j = 0;
+        while j < cleaned_words.len() {
+            let w = cleaned_words[j];
+            if Self::strip_trailing_punct(w).len() == 1 {
+                // Count consecutive single-letter tokens
+                let mut stutter_count = 1;
+                while j + stutter_count < cleaned_words.len()
+                    && Self::strip_trailing_punct(cleaned_words[j + stutter_count]).len() == 1
+                {
+                    stutter_count += 1;
+                }
+                if stutter_count >= 3 {
+                    // Drop the stutter entirely — it's noise
+                    j += stutter_count;
+                    continue;
+                }
+            }
+            final_words.push(w);
+            j += 1;
+        }
+
+        final_words
     }
 
-    // Enhanced phrase repetition removal with variable length detection
+    /// Case-insensitive, punctuation-stripped phrase comparison
+    fn phrases_match(a: &[&str], b: &[&str]) -> bool {
+        a.len() == b.len()
+            && a.iter().zip(b.iter()).all(|(x, y)| {
+                Self::strip_trailing_punct(x).to_lowercase()
+                    == Self::strip_trailing_punct(y).to_lowercase()
+            })
+    }
+
+    // Enhanced phrase repetition removal — handles 2+ consecutive repetitions,
+    // case-insensitive, punctuation-aware. Tries longest phrase first for greedy match.
     fn remove_phrase_repetitions<'a>(words: &'a [&'a str]) -> Vec<&'a str> {
         if words.len() < 4 {
             return words.to_vec();
@@ -532,19 +559,31 @@ impl WhisperEngine {
         while i < words.len() {
             let mut phrase_found = false;
 
-            // Check for 2-word to 5-word phrase repetitions
-            for phrase_len in 2..=std::cmp::min(5, (words.len() - i) / 2) {
-                if i + phrase_len * 2 <= words.len() {
-                    let phrase1 = &words[i..i + phrase_len];
-                    let phrase2 = &words[i + phrase_len..i + phrase_len * 2];
+            // Try longest phrases first (greedy) — 5-word down to 2-word
+            let max_phrase = std::cmp::min(5, (words.len() - i) / 2);
+            for phrase_len in (2..=max_phrase).rev() {
+                if i + phrase_len * 2 > words.len() {
+                    continue;
+                }
+                let phrase = &words[i..i + phrase_len];
+                let next_phrase = &words[i + phrase_len..i + phrase_len * 2];
 
-                    if phrase1 == phrase2 {
-                        // Add the phrase once and skip the repetition
-                        final_words.extend_from_slice(phrase1);
-                        i += phrase_len * 2;
-                        phrase_found = true;
-                        break;
+                if Self::phrases_match(phrase, next_phrase) {
+                    // Count how many times this phrase repeats consecutively
+                    let mut reps = 2;
+                    while i + phrase_len * (reps + 1) <= words.len() {
+                        let candidate = &words[i + phrase_len * reps..i + phrase_len * (reps + 1)];
+                        if Self::phrases_match(phrase, candidate) {
+                            reps += 1;
+                        } else {
+                            break;
+                        }
                     }
+                    // Keep just one copy of the phrase
+                    final_words.extend_from_slice(phrase);
+                    i += phrase_len * reps;
+                    phrase_found = true;
+                    break;
                 }
             }
 
@@ -596,12 +635,18 @@ impl WhisperEngine {
         // If language is "auto-translate", enable translation to English
         // Otherwise, use the specified language code
         let (language_code, should_translate) = match language.as_deref() {
-            Some("auto") | None => (None, false),
+            Some("auto") => (None, false),
+            None => (Some("en"), false),  // Default to English — avoids auto-detection overhead and misdetection on short segments
             Some("auto-translate") => (None, true),
             Some(lang) => (Some(lang), false),
         };
         params.set_language(language_code);
         params.set_translate(should_translate);
+
+        // Condition Whisper's decoder on meeting-style output format
+        // This is OpenAI's documented #1 accuracy lever — steers output toward
+        // proper punctuation, capitalization, and transcription style
+        params.set_initial_prompt("Meeting transcript. Use proper punctuation and capitalization.");
 
         // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
         // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
@@ -623,10 +668,9 @@ impl WhisperEngine {
         params.set_max_initial_ts(1.0);
         params.set_entropy_thold(2.4);
         params.set_logprob_thold(-1.0);
-        // BALANCED FIX: Lowered from 0.75 to 0.55 to allow quiet speech detection
-        // Previous value was too aggressive and rejected valid quiet speech
-        // 0.55 is balanced - prevents hallucinations while preserving quiet speech
-        params.set_no_speech_thold(0.55);
+        // Lowered from 0.55 to 0.45 to preserve quiet speech segments
+        // Higher values cause Whisper to discard valid speech from quieter speakers
+        params.set_no_speech_thold(0.45);
         params.set_max_len(200);
         params.set_single_segment(false);
 
@@ -652,8 +696,8 @@ impl WhisperEngine {
             // Suppressor dropped here, stderr restored
         };
         let mut result = String::new();
-        let mut total_confidence = 0.0;
-        let mut segment_count = 0;
+        let mut total_token_prob = 0.0f32;
+        let mut total_tokens = 0usize;
 
         let num_segments = num_segments?;
         for i in 0..num_segments {
@@ -662,15 +706,15 @@ impl WhisperEngine {
                 Err(_) => continue,
             };
 
-            // Calculate confidence based on segment length and duration (simplified approach)
-            let segment_length = segment_text.len() as f32;
-            let segment_confidence = if segment_length > 0.0 {
-                (segment_length / 100.0).min(0.9) + 0.1 // 0.1 to 1.0 confidence based on text length
-            } else {
-                0.1
-            };
-            total_confidence += segment_confidence;
-            segment_count += 1;
+            // Extract real per-token probabilities from Whisper
+            if let Ok(n_tokens) = state.full_n_tokens(i) {
+                for t in 0..n_tokens {
+                    if let Ok(prob) = state.full_get_token_prob(i, t) {
+                        total_token_prob += prob;
+                        total_tokens += 1;
+                    }
+                }
+            }
 
             let cleaned_text = segment_text.trim();
             if !cleaned_text.is_empty() {
@@ -684,13 +728,122 @@ impl WhisperEngine {
         let final_result = result.trim().to_string();
         let cleaned_result = Self::clean_repetitive_text(&final_result);
 
-        let avg_confidence = if segment_count > 0 {
-            total_confidence / segment_count as f32
+        let avg_confidence = if total_tokens > 0 {
+            total_token_prob / total_tokens as f32
         } else {
             0.0
         };
 
         Ok((cleaned_result, avg_confidence, is_partial))
+    }
+
+    /// Batch transcription for retranscription workloads.
+    /// Uses beam_size=5 (regardless of platform) and chains the previous segment's
+    /// text into initial_prompt for cross-segment context continuity.
+    pub async fn transcribe_batch(
+        &self,
+        audio_data: Vec<f32>,
+        language: Option<String>,
+        previous_text: Option<&str>,
+    ) -> Result<(String, f32)> {
+        let ctx_lock = self.current_context.read().await;
+        let ctx = ctx_lock.as_ref()
+            .ok_or_else(|| anyhow!("No model loaded. Please load a model first."))?;
+
+        let hardware_profile = crate::audio::HardwareProfile::detect();
+        let batch_config = hardware_profile.get_whisper_config_batch();
+
+        let mut params = FullParams::new(SamplingStrategy::BeamSearch {
+            beam_size: batch_config.beam_size as i32,
+            patience: 1.0
+        });
+
+        let (language_code, should_translate) = match language.as_deref() {
+            Some("auto") => (None, false),
+            None => (Some("en"), false),
+            Some("auto-translate") => (None, true),
+            Some(lang) => (Some(lang), false),
+        };
+        params.set_language(language_code);
+        params.set_translate(should_translate);
+
+        // Chain previous segment text into initial_prompt for continuity.
+        // Whisper uses the prompt to condition its decoder — feeding prior context
+        // dramatically reduces hallucinations and improves punctuation across segments.
+        let prompt = match previous_text {
+            Some(prev) if !prev.is_empty() => {
+                // Take last ~200 chars of previous text for context
+                let ctx_start = prev.len().saturating_sub(200);
+                let ctx_start = prev.ceil_char_boundary(ctx_start);
+                format!(
+                    "Meeting transcript. Use proper punctuation and capitalization. {}",
+                    &prev[ctx_start..]
+                )
+            }
+            _ => "Meeting transcript. Use proper punctuation and capitalization.".to_string(),
+        };
+        params.set_initial_prompt(&prompt);
+
+        params.set_no_timestamps(true);
+        params.set_token_timestamps(true);
+        params.set_print_special(false);
+        params.set_print_progress(false);
+        params.set_print_realtime(false);
+        params.set_print_timestamps(false);
+        params.set_suppress_blank(true);
+        params.set_suppress_non_speech_tokens(true);
+        params.set_temperature(batch_config.temperature);
+        params.set_max_initial_ts(1.0);
+        params.set_entropy_thold(2.4);
+        params.set_logprob_thold(-1.0);
+        params.set_no_speech_thold(0.45);
+        params.set_max_len(200);
+        params.set_single_segment(false);
+
+        let mut state = ctx.create_state()?;
+        state.full(params, &audio_data)?;
+
+        let num_segments = state.full_n_segments()?;
+        let mut result = String::new();
+        let mut total_token_prob = 0.0f32;
+        let mut total_tokens = 0usize;
+
+        for i in 0..num_segments {
+            let segment_text = match state.full_get_segment_text_lossy(i) {
+                Ok(text) => text,
+                Err(_) => continue,
+            };
+
+            // Extract real per-token log probabilities for this segment
+            if let Ok(n_tokens) = state.full_n_tokens(i) {
+                for t in 0..n_tokens {
+                    if let Ok(prob) = state.full_get_token_prob(i, t) {
+                        total_token_prob += prob;
+                        total_tokens += 1;
+                    }
+                }
+            }
+
+            let cleaned_text = segment_text.trim();
+            if !cleaned_text.is_empty() {
+                if !result.is_empty() {
+                    result.push(' ');
+                }
+                result.push_str(cleaned_text);
+            }
+        }
+
+        let final_result = result.trim().to_string();
+        let cleaned_result = Self::clean_repetitive_text(&final_result);
+
+        // Average token probability — real confidence from the model
+        let avg_confidence = if total_tokens > 0 {
+            total_token_prob / total_tokens as f32
+        } else {
+            0.0
+        };
+
+        Ok((cleaned_result, avg_confidence))
     }
 
     pub async fn transcribe_audio(&self, audio_data: Vec<f32>, language: Option<String>) -> Result<String> {
@@ -713,12 +866,16 @@ impl WhisperEngine {
         // If language is "auto-translate", enable translation to English
         // Otherwise, use the specified language code
         let (language_code, should_translate) = match language.as_deref() {
-            Some("auto") | None => (None, false),
+            Some("auto") => (None, false),
+            None => (Some("en"), false),  // Default to English — avoids auto-detection overhead and misdetection on short segments
             Some("auto-translate") => (None, true),
             Some(lang) => (Some(lang), false),
         };
         params.set_language(language_code);
         params.set_translate(should_translate);
+
+        // Condition Whisper's decoder on meeting-style output format
+        params.set_initial_prompt("Meeting transcript. Use proper punctuation and capitalization.");
 
         // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
         // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
@@ -734,14 +891,13 @@ impl WhisperEngine {
         // BALANCED settings - good quality with reasonable speed
         params.set_suppress_blank(true);
         params.set_suppress_non_speech_tokens(true);
-        params.set_temperature(0.3);             // Lower than 0.4 for consistency, higher than 0.0 for quality
+        params.set_temperature(adaptive_config.temperature); // Hardware-adaptive (0.1-0.4)
         params.set_max_initial_ts(1.0);
         params.set_entropy_thold(2.4);
         params.set_logprob_thold(-1.0);
-        // BALANCED FIX: Lowered from 0.75 to 0.55 to allow quiet speech detection
-        // Previous value was too aggressive and rejected valid quiet speech
-        // 0.55 is balanced - prevents hallucinations while preserving quiet speech
-        params.set_no_speech_thold(0.55);
+        // Lowered from 0.55 to 0.45 to preserve quiet speech segments
+        // Higher values cause Whisper to discard valid speech from quieter speakers
+        params.set_no_speech_thold(0.45);
 
         // Reasonable length limits
         params.set_max_len(200);                 // Reasonable length
@@ -843,6 +999,73 @@ impl WhisperEngine {
 
         // Check for repetition loops and clean them up
         let cleaned_result = Self::clean_repetitive_text(&final_result);
+
+        // Temperature fallback: if repetition ratio is high (0.5-0.7) but not
+        // discard-level (>0.7), retry at a higher temperature to break the loop.
+        // Whisper can get stuck in repetitive output at low temperatures.
+        let cleaned_result = if !cleaned_result.is_empty() {
+            let ratio = Self::calculate_repetition_ratio(&cleaned_result);
+            if ratio > 0.5 && duration_seconds >= 1.0 {
+                let retry_temp = (adaptive_config.temperature + 0.2).min(0.6);
+                log::info!(
+                    "Transcription #{}: high repetition ratio ({:.2}), retrying at temperature {:.1}",
+                    transcription_count, ratio, retry_temp
+                );
+
+                // Rebuild params with higher temperature
+                let mut retry_params = FullParams::new(SamplingStrategy::BeamSearch {
+                    beam_size: adaptive_config.beam_size as i32,
+                    patience: 1.0,
+                });
+                retry_params.set_language(language_code);
+                retry_params.set_translate(should_translate);
+                retry_params.set_initial_prompt("Meeting transcript. Use proper punctuation and capitalization.");
+                retry_params.set_no_timestamps(true);
+                retry_params.set_token_timestamps(true);
+                retry_params.set_print_special(false);
+                retry_params.set_print_progress(false);
+                retry_params.set_print_realtime(false);
+                retry_params.set_print_timestamps(false);
+                retry_params.set_suppress_blank(true);
+                retry_params.set_suppress_non_speech_tokens(true);
+                retry_params.set_temperature(retry_temp);
+                retry_params.set_max_initial_ts(1.0);
+                retry_params.set_entropy_thold(2.4);
+                retry_params.set_logprob_thold(-1.0);
+                retry_params.set_no_speech_thold(0.45);
+                retry_params.set_max_len(200);
+                retry_params.set_single_segment(false);
+
+                let mut retry_state = ctx.create_state()?;
+                retry_state.full(retry_params, &audio_data)?;
+                let retry_segments = retry_state.full_n_segments()?;
+
+                let mut retry_result = String::new();
+                for i in 0..retry_segments {
+                    if let Ok(text) = retry_state.full_get_segment_text_lossy(i) {
+                        let t = text.trim();
+                        if !t.is_empty() {
+                            if !retry_result.is_empty() { retry_result.push(' '); }
+                            retry_result.push_str(t);
+                        }
+                    }
+                }
+                let retry_cleaned = Self::clean_repetitive_text(&retry_result);
+                let retry_ratio = Self::calculate_repetition_ratio(&retry_cleaned);
+
+                // Keep the retry only if it's less repetitive
+                if retry_ratio < ratio {
+                    log::info!("Temperature fallback improved: ratio {:.2} -> {:.2}", ratio, retry_ratio);
+                    retry_cleaned
+                } else {
+                    cleaned_result
+                }
+            } else {
+                cleaned_result
+            }
+        } else {
+            cleaned_result
+        };
 
         // Performance optimization: smart logging for transcription results
         if cleaned_result.is_empty() {
@@ -1010,8 +1233,7 @@ impl WhisperEngine {
             "medium-q5_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin",
             "large-v3-turbo-q5_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
             "large-v3-q5_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
-            // Quantized int8 models
-            
+
             _ => return Err(anyhow!("Unsupported model: {}", model_name))
         };
         
