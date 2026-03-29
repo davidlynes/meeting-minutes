@@ -124,6 +124,9 @@ export interface UserProfile {
   display_name: string | null
   account_level: string | null
   email_verified: boolean | null
+  org_id: string | null
+  org_role: string | null
+  org_name: string | null
   devices: DeviceSummary[]
 }
 
@@ -336,6 +339,23 @@ export async function deleteAccount(): Promise<{ message: string }> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Deletion failed' }))
     throw new Error(extractErrorMessage(err.detail, 'Deletion failed'))
+  }
+  return res.json()
+}
+
+// ── Organisation ──────────────────────────────────────────────────
+
+export async function createInvite(
+  email?: string,
+  role: string = 'member',
+): Promise<{ code: string; org_name: string; expires_at: string }> {
+  const res = await authFetch('/api/org/invites', {
+    method: 'POST',
+    body: JSON.stringify({ email: email || null, role }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create invite' }))
+    throw new Error(extractErrorMessage(err.detail, 'Failed to create invite'))
   }
   return res.json()
 }

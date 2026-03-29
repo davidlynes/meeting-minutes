@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ChangePasswordForm } from './ChangePasswordForm'
-import { updateProfile, deactivateAccount, deleteAccount } from '@/services/authService'
+import { updateProfile, deactivateAccount, deleteAccount, createInvite } from '@/services/authService'
 
 export function UserProfileMenu() {
   const { user, logout, isAuthenticated } = useAuth()
@@ -12,6 +12,9 @@ export function UserProfileMenu() {
   const [editingName, setEditingName] = useState(false)
   const [newName, setNewName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [inviteCode, setInviteCode] = useState<string | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -28,6 +31,27 @@ export function UserProfileMenu() {
   if (!isAuthenticated || !user) return null
 
   const initial = (user.display_name || user.email)[0].toUpperCase()
+  const isAdmin = user.org_role === 'admin' || user.org_role === 'owner'
+
+  const handleCreateInvite = async () => {
+    setInviteLoading(true)
+    setInviteError('')
+    setInviteCode(null)
+    try {
+      const result = await createInvite()
+      setInviteCode(result.code)
+    } catch (err: unknown) {
+      setInviteError(err instanceof Error ? err.message : 'Failed to create invite')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopyInvite = () => {
+    if (inviteCode) {
+      navigator.clipboard.writeText(inviteCode)
+    }
+  }
 
   const handleSaveName = async () => {
     try {
@@ -105,11 +129,51 @@ export function UserProfileMenu() {
               )}
             </div>
             <div className="px-3 py-1.5 text-xs text-gray-400">
+              {user.org_name && (
+                <p className="text-gray-600 font-medium">{user.org_name}</p>
+              )}
               {user.devices.length} device{user.devices.length !== 1 ? 's' : ''} linked
-              {user.account_level && (
-                <span className="ml-1 capitalize">({user.account_level})</span>
+              {user.org_role && (
+                <span className="ml-1 capitalize">· {user.org_role}</span>
               )}
             </div>
+            {isAdmin && (
+              <div className="border-t border-gray-100">
+                {inviteCode ? (
+                  <div className="px-3 py-2 space-y-1">
+                    <p className="text-xs text-gray-500">Share this code:</p>
+                    <div className="flex items-center gap-1">
+                      <code className="flex-1 text-xs bg-gray-100 px-2 py-1 rounded font-mono truncate">
+                        {inviteCode}
+                      </code>
+                      <button
+                        onClick={handleCopyInvite}
+                        className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setInviteCode(null)}
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleCreateInvite}
+                    disabled={inviteLoading}
+                    className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    {inviteLoading ? 'Creating...' : 'Invite User'}
+                  </button>
+                )}
+                {inviteError && (
+                  <p className="px-3 pb-1 text-xs text-red-500">{inviteError}</p>
+                )}
+              </div>
+            )}
             <button
               onClick={() => {
                 setOpen(false)
