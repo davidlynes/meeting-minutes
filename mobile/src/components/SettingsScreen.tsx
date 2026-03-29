@@ -8,6 +8,7 @@ import { DeviceSummary } from '@/types'
 import * as authService from '@/services/authService'
 import { LogOut, User, Cloud, HardDrive, Key, Pencil, Trash2, Smartphone, Check, X, ChevronRight, Shield } from 'lucide-react'
 import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, getBiometricType } from '@/services/biometricAuth'
+import { useHeader } from '@/contexts/HeaderContext'
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth()
@@ -44,6 +45,8 @@ export default function SettingsScreen() {
 
   // Error state
   const [error, setError] = useState<string | null>(null)
+
+  useHeader({ title: 'Settings' })
 
   useEffect(() => {
     if (showDevices) {
@@ -106,8 +109,6 @@ export default function SettingsScreen() {
 
   return (
     <div className="px-4 pt-4 pb-24">
-      <h1 className="text-2xl font-bold text-iq-dark mb-6">Settings</h1>
-
       {error && (
         <div className="mb-4 p-3 bg-iq-light border border-iq-light-shade rounded-iq-lg text-sm text-iq-red">
           {error}
