@@ -18,7 +18,6 @@ def capacitor_pods
   pod 'CapacitorLocalNotifications', :path => '../../node_modules/.pnpm/@capacitor+local-notifications@6.1.3_@capacitor+core@6.2.1/node_modules/@capacitor/local-notifications'
   pod 'CapacitorNetwork', :path => '../../node_modules/.pnpm/@capacitor+network@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/network'
   pod 'CapacitorPreferences', :path => '../../node_modules/.pnpm/@capacitor+preferences@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/preferences'
-  pod 'CapacitorStatusBar', :path => '../../node_modules/.pnpm/@capacitor+status-bar@6.0.3_@capacitor+core@6.2.1/node_modules/@capacitor/status-bar'
 end
 
 target 'App' do

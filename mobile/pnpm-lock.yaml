@@ -38,9 +38,6 @@ importers:
       '@capacitor/preferences':
         specifier: ^6.0.0
         version: 6.0.4(@capacitor/core@6.2.1)
-      '@capacitor/status-bar':
-        specifier: ^6.0.3
-        version: 6.0.3(@capacitor/core@6.2.1)
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@18.3.1)
@@ -303,11 +300,6 @@ packages:
 
   '@capacitor/preferences@6.0.4':
     resolution: {integrity: sha512-ziauSI1pgdyl+gduvvf8lInvzF3Wdyu/ok+u7NlnhKp8XOj9plJgtnXZWFiR8CiCK5wMvo+gFaNh3zhMyEUwpA==}
-    peerDependencies:
-      '@capacitor/core': ^6.0.0
-
-  '@capacitor/status-bar@6.0.3':
-    resolution: {integrity: sha512-nFlgSmtx6Zwaw0tEvZgQsWHBeOfWWB/AvEoCApopLT4mHkBVoSrwkLvy2PjZs5wxCbsmqvQczr3XCyTwaDZVQg==}
     peerDependencies:
       '@capacitor/core': ^6.0.0
 
@@ -2613,10 +2605,6 @@ snapshots:
       '@capacitor/core': 6.2.1
 
   '@capacitor/preferences@6.0.4(@capacitor/core@6.2.1)':
-    dependencies:
-      '@capacitor/core': 6.2.1
-
-  '@capacitor/status-bar@6.0.3(@capacitor/core@6.2.1)':
     dependencies:
       '@capacitor/core': 6.2.1
 

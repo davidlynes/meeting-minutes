@@ -16,11 +16,6 @@ const config: CapacitorConfig = {
       iosIsEncryption: false,
       androidIsEncryption: false,
     },
-    StatusBar: {
-      overlaysWebView: false,
-      style: 'LIGHT',
-      backgroundColor: '#2276aa',
-    },
   },
   // Deep linking configuration
   // iOS: Add Associated Domains entitlement in Xcode (applinks:app.iqcapture.app)

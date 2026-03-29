@@ -18,8 +18,6 @@ PODS:
     - Capacitor
   - CapacitorPreferences (6.0.4):
     - Capacitor
-  - CapacitorStatusBar (6.0.3):
-    - Capacitor
   - SQLCipher (4.10.0):
     - SQLCipher/standard (= 4.10.0)
   - SQLCipher/common (4.10.0)
@@ -37,7 +35,6 @@ DEPENDENCIES:
   - "CapacitorLocalNotifications (from `../../node_modules/.pnpm/@capacitor+local-notifications@6.1.3_@capacitor+core@6.2.1/node_modules/@capacitor/local-notifications`)"
   - "CapacitorNetwork (from `../../node_modules/.pnpm/@capacitor+network@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/network`)"
   - "CapacitorPreferences (from `../../node_modules/.pnpm/@capacitor+preferences@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/preferences`)"
-  - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@6.0.3_@capacitor+core@6.2.1/node_modules/@capacitor/status-bar`)"
 
 SPEC REPOS:
   trunk:
@@ -63,8 +60,6 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor+network@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/network"
   CapacitorPreferences:
     :path: "../../node_modules/.pnpm/@capacitor+preferences@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/preferences"
-  CapacitorStatusBar:
-    :path: "../../node_modules/.pnpm/@capacitor+status-bar@6.0.3_@capacitor+core@6.2.1/node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
   AparajitaCapacitorBiometricAuth: 1ae24ba90d7977dffb4bc9040f374a807a510c98
@@ -76,10 +71,9 @@ SPEC CHECKSUMS:
   CapacitorLocalNotifications: 801867e687c42dd2b33c1e22e08f48e6738d2f72
   CapacitorNetwork: 093efa3664b692a971bdd01be70523291cd6a87f
   CapacitorPreferences: 5848e0691b36b4bb4acc98e481ab56d451578d30
-  CapacitorStatusBar: 149cde8f1328ec3aa6cbdd872a55137ae3f98b16
   SQLCipher: eb79c64049cb002b4e9fcb30edb7979bf4706dfc
   ZIPFoundation: dfd3d681c4053ff7e2f7350bc4e53b5dba3f5351
 
-PODFILE CHECKSUM: 5fbe7e152e14fbf359beb0fef86004f61a90fdb3
+PODFILE CHECKSUM: 5019c2e5dc7d6ca427319761fe4eb49fa0ed694a
 
 COCOAPODS: 1.16.2

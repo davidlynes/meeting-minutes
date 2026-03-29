@@ -33,12 +33,6 @@
     "id": 4613,
     "files": []
   },
-  "app/layout.tsx -> @capacitor/status-bar": {
-    "id": 9892,
-    "files": [
-      "static/chunks/892.063e98d2f7256f7c.js"
-    ]
-  },
   "services/biometricAuth.ts -> @aparajita/capacitor-biometric-auth": {
     "id": 2498,
     "files": [

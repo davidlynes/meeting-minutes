@@ -342,13 +342,6 @@ export default function RootLayout({
   const router = useRouter()
 
   useEffect(() => {
-    // Configure iOS status bar — don't overlay webview
-    import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
-      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
-      StatusBar.setStyle({ style: Style.Light }).catch(() => {})
-      StatusBar.setBackgroundColor({ color: '#2276aa' }).catch(() => {})
-    }).catch(() => {}) // Not available in browser
-
     initUsageService()
     initNotifications()
 
