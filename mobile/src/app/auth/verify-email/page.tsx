@@ -42,16 +42,16 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-iq-light px-6">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Verify your email</h1>
-        <p className="text-sm text-gray-500 mb-6">
+        <h1 className="text-2xl font-bold text-iq-dark mb-1">IQ:capture</h1>
+        <p className="text-sm text-iq-medium mb-6">
           Enter the 6-digit code sent to <span className="font-medium">{emailParam}</span>
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Verification code</label>
+            <label className="detail-label mb-1 block">Verification code</label>
             <input
               type="text"
               inputMode="numeric"
@@ -61,18 +61,26 @@ export default function VerifyEmailPage() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
               required
               autoFocus
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2.5 border border-iq-light-shade rounded-iq-lg text-sm text-iq-dark bg-white text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-iq-blue focus:border-transparent"
               placeholder="000000"
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {resendMsg && <p className="text-sm text-green-600">{resendMsg}</p>}
+          {error && (
+            <div className="status-banner status-banner-danger">
+              <span className="text-sm text-iq-red">{error}</span>
+            </div>
+          )}
+          {resendMsg && (
+            <div className="status-banner status-banner-success">
+              <span className="text-sm text-iq-green">{resendMsg}</span>
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading || code.length !== 6}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="btn-iq-primary w-full"
           >
             {loading ? 'Verifying...' : 'Verify Email'}
           </button>
@@ -81,12 +89,12 @@ export default function VerifyEmailPage() {
         <div className="mt-4 text-center space-y-2">
           <button
             onClick={handleResend}
-            className="text-sm text-blue-600 font-medium"
+            className="text-sm text-iq-blue font-semibold"
           >
             Resend code
           </button>
-          <p className="text-sm text-gray-500">
-            <Link href="/auth/login" className="text-blue-600 font-medium">
+          <p className="text-sm text-iq-medium">
+            <Link href="/auth/login" className="text-iq-blue font-semibold">
               Back to sign in
             </Link>
           </p>
