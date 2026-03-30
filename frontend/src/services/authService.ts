@@ -17,26 +17,16 @@ async function getTauriInvoke() {
   return _tauriInvokePromise
 }
 
-// Cloud API URL — configurable via environment or fetched from local backend
-let cloudApiUrl: string = process.env.NEXT_PUBLIC_CLOUD_API_URL || ''
+// Cloud API URL — always points to Azure production API
+const AZURE_API_URL = 'https://live-iqcapture-api-ekg4haafg2gubegb.uksouth-01.azurewebsites.net'
+let cloudApiUrl: string = process.env.NEXT_PUBLIC_CLOUD_API_URL || AZURE_API_URL
 
 export async function initCloudApiUrl(): Promise<void> {
-  if (cloudApiUrl) return
-  try {
-    const res = await fetch('http://localhost:5167/api/config')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.cloud_api_url) {
-        cloudApiUrl = data.cloud_api_url
-      }
-    }
-  } catch {
-    console.warn('[AuthService] Could not fetch cloud API URL from local backend')
-  }
+  // No-op — URL is always set via env var or Azure default
 }
 
 function getBaseUrl(): string {
-  return cloudApiUrl || 'http://localhost:5167'
+  return cloudApiUrl
 }
 
 // ── Token management (Tauri secure store with browser fallback) ─────

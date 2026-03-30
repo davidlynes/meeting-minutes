@@ -9,22 +9,12 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getAccessToken, getAuthUserId } from './authService'
 
-// Cloud API URL — same as authService
-let cloudApiUrl: string = process.env.NEXT_PUBLIC_CLOUD_API_URL || ''
+// Cloud API URL — always points to Azure production API
+const AZURE_API_URL = 'https://live-iqcapture-api-ekg4haafg2gubegb.uksouth-01.azurewebsites.net'
+let cloudApiUrl: string = process.env.NEXT_PUBLIC_CLOUD_API_URL || AZURE_API_URL
 
 async function getBaseUrl(): Promise<string> {
-  if (cloudApiUrl) return cloudApiUrl
-  try {
-    const res = await fetch('http://localhost:5167/api/config')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.cloud_api_url) {
-        cloudApiUrl = data.cloud_api_url
-        return cloudApiUrl
-      }
-    }
-  } catch { /* ignore */ }
-  return 'http://localhost:5167'
+  return cloudApiUrl
 }
 
 // ── Track events via Rust buffer ────────────────────────────────────
