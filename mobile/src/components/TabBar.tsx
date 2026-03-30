@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation'
 import { List, Mic, Settings } from 'lucide-react'
 
 const tabs = [
-  { href: '/', label: 'Meetings', icon: List },
-  { href: '/record/', label: 'Record', icon: Mic },
-  { href: '/settings/', label: 'Settings', icon: Settings },
+  { href: '/index.html', label: 'Meetings', icon: List },
+  { href: '/record/index.html', label: 'Record', icon: Mic },
+  { href: '/settings/index.html', label: 'Settings', icon: Settings },
 ]
 
 export default function TabBar() {
@@ -17,9 +17,9 @@ export default function TabBar() {
     <nav className="fixed bottom-0 left-0 right-0 bg-iq-light border-t border-iq-light-shade pb-[var(--safe-area-bottom)] z-50">
       <div className="flex items-center justify-around h-14">
         {tabs.map(({ href, label, icon: Icon }) => {
-          const active = href === '/'
-            ? pathname === '/' || pathname === ''
-            : pathname.startsWith(href.replace(/\/$/, ''))
+          const active = href === '/index.html'
+            ? pathname === '/' || pathname === '' || pathname === '/index.html'
+            : pathname.startsWith(href.replace(/\/index\.html$/, ''))
 
           return (
             <a
