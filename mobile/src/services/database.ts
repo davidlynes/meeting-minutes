@@ -140,10 +140,31 @@ class CapacitorSQLiteDatabase implements DatabaseAdapter {
   }
 
   async updateMeeting(meetingId: string, fields: Partial<Meeting>): Promise<void> {
-    const existing = await this.getMeeting(meetingId)
-    if (!existing) return
-    const merged = { ...existing, ...fields }
-    await this.insertMeeting(merged)
+    // Build a dynamic UPDATE — avoids SELECT round-trip and can't lose NOT NULL columns
+    const allowedColumns = [
+      'title', 'updated_at', 'status', 'duration_seconds',
+      'transcript_text', 'transcript_segments', 'summary',
+      'audio_file_path', 'sync_status', 'version', 'last_synced_at',
+    ] as const
+    const setClauses: string[] = []
+    const values: any[] = []
+    for (const col of allowedColumns) {
+      if (col in fields) {
+        setClauses.push(`${col} = ?`)
+        const val = (fields as any)[col]
+        if (col === 'transcript_segments' || col === 'summary') {
+          values.push(val ? JSON.stringify(val) : null)
+        } else {
+          values.push(val ?? null)
+        }
+      }
+    }
+    if (setClauses.length === 0) return
+    values.push(meetingId)
+    await this.run(
+      `UPDATE meetings SET ${setClauses.join(', ')} WHERE meeting_id = ?`,
+      values
+    )
   }
 
   async deleteMeeting(meetingId: string): Promise<void> {
