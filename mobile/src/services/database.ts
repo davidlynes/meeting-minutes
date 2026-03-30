@@ -105,7 +105,12 @@ class CapacitorSQLiteDatabase implements DatabaseAdapter {
 
   private async query(sql: string, values: any[] = []): Promise<any[]> {
     const result = await this.sqlite.query({ database: 'iqcapture', statement: sql, values })
-    return result.values || []
+    const rows = result.values || []
+    // Capacitor SQLite on iOS prepends a metadata row with ios_columns — skip it
+    if (rows.length > 0 && rows[0].ios_columns) {
+      return rows.slice(1)
+    }
+    return rows
   }
 
   async insertMeeting(meeting: Meeting): Promise<void> {
