@@ -72,16 +72,22 @@ class CapacitorSQLiteDatabase implements DatabaseAdapter {
       const { CapacitorSQLite } = await import('@capacitor-community/sqlite')
       this.sqlite = CapacitorSQLite
 
-      // Create/open database
-      const ret = await this.sqlite.createConnection({
-        database: 'iqcapture',
-        version: SCHEMA_VERSION,
-        encrypted: false,
-        mode: 'no-encryption',
-      })
-      this.db = ret
+      // Create or reuse existing database connection
+      // (connection persists in native plugin across WebView reloads)
+      try {
+        await this.sqlite.createConnection({
+          database: 'iqcapture',
+          version: SCHEMA_VERSION,
+          encrypted: false,
+          mode: 'no-encryption',
+        })
+      } catch (e: any) {
+        if (!e?.errorMessage?.includes('already exists')) throw e
+      }
 
-      await this.sqlite.open({ database: 'iqcapture' })
+      await this.sqlite.open({ database: 'iqcapture' }).catch(() => {
+        // Already open — safe to proceed
+      })
 
       // Create tables
       const statements = CREATE_TABLES_SQL.split(';')
