@@ -92,6 +92,12 @@ class CapacitorSQLiteDatabase implements DatabaseAdapter {
         await this.sqlite.execute({ database: 'iqcapture', statements: stmt + ';' })
       }
 
+      // Clean up stuck recordings from previous crashes
+      await this.sqlite.execute({
+        database: 'iqcapture',
+        statements: `UPDATE meetings SET status = 'error' WHERE status = 'recording';`,
+      })
+
       console.log('[Database] Capacitor SQLite initialized')
     } catch (e) {
       console.error('[Database] Failed to initialize Capacitor SQLite:', e)
@@ -234,16 +240,20 @@ class CapacitorSQLiteDatabase implements DatabaseAdapter {
   }
 
   private rowToMeeting(row: any): Meeting {
+    let segments: any
+    let summary: any
+    try { segments = row.transcript_segments ? JSON.parse(row.transcript_segments) : undefined } catch { segments = undefined }
+    try { summary = row.summary ? JSON.parse(row.summary) : undefined } catch { summary = undefined }
     return {
       meeting_id: row.meeting_id,
-      title: row.title,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      status: row.status,
+      title: row.title || '',
+      created_at: row.created_at || new Date().toISOString(),
+      updated_at: row.updated_at || new Date().toISOString(),
+      status: row.status || 'error',
       duration_seconds: row.duration_seconds,
       transcript_text: row.transcript_text,
-      transcript_segments: row.transcript_segments ? JSON.parse(row.transcript_segments) : undefined,
-      summary: row.summary ? JSON.parse(row.summary) : undefined,
+      transcript_segments: segments,
+      summary: summary,
       audio_file_path: row.audio_file_path,
       sync_status: row.sync_status,
       version: row.version,
