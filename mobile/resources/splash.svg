@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2732" height="2732" viewBox="0 0 2732 2732">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2276aa"/>
+      <stop offset="100%" style="stop-color:#1caac9"/>
+    </linearGradient>
+  </defs>
+  <rect width="2732" height="2732" fill="url(#bg)"/>
+  <text x="1366" y="1280" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="200" fill="white" letter-spacing="-2">IQ:capture</text>
+  <text x="1366" y="1450" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="400" font-size="80" fill="rgba(255,255,255,0.7)">Meeting Intelligence</text>
+</svg>

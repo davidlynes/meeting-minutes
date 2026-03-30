@@ -1,0 +1,1 @@
+"use strict";exports.id=66,exports.ids=[66],exports.modules={1066:(t,e,i)=>{i.d(e,{CapacitorSQLite:()=>o});let o=(0,i(5075).fo)("CapacitorSQLite",{web:()=>i.e(410).then(i.bind(i,2410)).then(t=>new t.CapacitorSQLiteWeb),electron:()=>window.CapacitorCustomPlatform.plugins.CapacitorSQLite})}};

@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[318],{6868:function(t,e,i){i.d(e,{CapacitorSQLite:function(){return n}});let n=(0,i(8033).fo)("CapacitorSQLite",{web:()=>i.e(678).then(i.bind(i,6678)).then(t=>new t.CapacitorSQLiteWeb),electron:()=>window.CapacitorCustomPlatform.plugins.CapacitorSQLite})}}]);
