@@ -73,7 +73,7 @@ ACCOUNT_LEVEL_LIMITS = {
     "enterprise": 50,
 }
 
-SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "noreply@iqcapture.app")
+SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "alerts@iqtimecard.com")
 
 
 # ── Email helpers ───────────────────────────────────────────────────
