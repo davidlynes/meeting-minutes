@@ -1,6 +1,37 @@
 import { jsPDF } from 'jspdf';
 import { BrandTemplate } from './docxExport';
 
+/** Read PNG dimensions from header bytes */
+function getPngDimensions(data: Uint8Array): { width: number; height: number } | null {
+  if (data.length < 24) return null;
+  if (data[0] !== 0x89 || data[1] !== 0x50) return null;
+  const width = (data[16] << 24 | data[17] << 16 | data[18] << 8 | data[19]) >>> 0;
+  const height = (data[20] << 24 | data[21] << 16 | data[22] << 8 | data[23]) >>> 0;
+  if (width > 0 && height > 0) return { width, height };
+  return null;
+}
+
+/** Read JPEG dimensions from SOF marker */
+function getJpegDimensions(data: Uint8Array): { width: number; height: number } | null {
+  if (data.length < 4 || data[0] !== 0xFF || data[1] !== 0xD8) return null;
+  let offset = 2;
+  while (offset < data.length - 1) {
+    if (data[offset] !== 0xFF) break;
+    const marker = data[offset + 1];
+    // SOF0..SOF3 markers contain dimensions
+    if (marker >= 0xC0 && marker <= 0xC3) {
+      if (offset + 9 > data.length) return null;
+      const height = (data[offset + 5] << 8) | data[offset + 6];
+      const width = (data[offset + 7] << 8) | data[offset + 8];
+      if (width > 0 && height > 0) return { width, height };
+      return null;
+    }
+    const segLen = (data[offset + 2] << 8) | data[offset + 3];
+    offset += 2 + segLen;
+  }
+  return null;
+}
+
 /** Convert hex color string (e.g. "7A00DF") to RGB tuple */
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '');
@@ -207,22 +238,46 @@ export async function generatePdfFromMarkdown(
       const isPng = logoBytes[0] === 0x89 && logoBytes[1] === 0x50;
       const format = isPng ? 'PNG' : 'JPEG';
 
-      // Calculate dimensions (max 30mm width, preserve aspect ratio)
-      const maxLogoWidth = 30;
-      const maxLogoHeight = 30;
+      // Calculate dimensions preserving aspect ratio within max bounds
+      const maxLogoWidth = 40;
+      const maxLogoHeight = 20;
 
-      // Use a reasonable default aspect ratio, jsPDF handles sizing
+      const dims = isPng ? getPngDimensions(logoBytes) : getJpegDimensions(logoBytes);
+      let imgWidth = maxLogoWidth;
+      let imgHeight = maxLogoHeight;
+
+      if (dims) {
+        const aspect = dims.width / dims.height;
+        if (aspect >= 1) {
+          // Landscape or square — fit to max width
+          imgWidth = maxLogoWidth;
+          imgHeight = maxLogoWidth / aspect;
+          if (imgHeight > maxLogoHeight) {
+            imgHeight = maxLogoHeight;
+            imgWidth = maxLogoHeight * aspect;
+          }
+        } else {
+          // Portrait — fit to max height
+          imgHeight = maxLogoHeight;
+          imgWidth = maxLogoHeight * aspect;
+          if (imgWidth > maxLogoWidth) {
+            imgWidth = maxLogoWidth;
+            imgHeight = maxLogoWidth / aspect;
+          }
+        }
+      }
+
       doc.addImage(
         `data:image/${format.toLowerCase()};base64,${base64}`,
         format,
         marginLeft,
         y,
-        maxLogoWidth,
-        maxLogoHeight,
+        imgWidth,
+        imgHeight,
         undefined,
         'FAST',
       );
-      y += maxLogoHeight + 5;
+      y += imgHeight + 5;
     } catch (e) {
       console.warn('Failed to add logo to PDF:', e);
     }
