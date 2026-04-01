@@ -73,7 +73,6 @@ ACCOUNT_LEVEL_LIMITS = {
     "enterprise": 50,
 }
 
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
 SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "noreply@iqcapture.app")
 
 
@@ -82,7 +81,10 @@ SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "noreply@iqcapture.app")
 
 async def _send_email(to_email: str, subject: str, html_content: str):
     """Send an email via SendGrid. Falls back to logging if not configured."""
-    if not SENDGRID_API_KEY:
+    import asyncio
+
+    api_key = os.getenv("SENDGRID_API_KEY", "")
+    if not api_key:
         logger.warning(
             f"[EMAIL] SENDGRID_API_KEY not configured — would send to {to_email}: {subject}"
         )
@@ -96,8 +98,9 @@ async def _send_email(to_email: str, subject: str, html_content: str):
     )
 
     try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = sg.send(message)
+        sg = SendGridAPIClient(api_key)
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, sg.send, message)
         logger.info(f"[EMAIL] Sent to {to_email} — status {response.status_code}")
     except Exception as e:
         logger.error(f"[EMAIL] SendGrid failed for {to_email}: {e}")
@@ -109,9 +112,6 @@ async def _send_email(to_email: str, subject: str, html_content: str):
 
 async def _send_reset_email(email: str, code: str):
     """Send password reset code."""
-    if not SENDGRID_API_KEY:
-        logger.warning(f"[PASSWORD RESET] Code for {email}: {code}")
-        return
     await _send_email(
         email,
         "Your password reset code",
@@ -124,9 +124,6 @@ async def _send_reset_email(email: str, code: str):
 
 async def _send_verification_email(email: str, code: str):
     """Send email verification code."""
-    if not SENDGRID_API_KEY:
-        logger.warning(f"[EMAIL VERIFICATION] Code for {email}: {code}")
-        return
     await _send_email(
         email,
         "Verify your email address",
